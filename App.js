@@ -10,16 +10,27 @@ import {
   FlatList,
 } from "react-native";
 
-import { obtenerCalles } from "./src/servicios/calleService";
+import { obtenerCalles } from "./src/services/calleService";
+import { initLocalDatabase } from "./src/database/dbSetup";
 
 export default function App() {
   const [count, setCount] = useState(0);
-
   const [calles, setCalles] = useState([]);
+  const [dbLista, setDbLista] = useState(false);
 
   useEffect(() => {
+    prepararBaseDeDatos();
     cargarCalles();
   }, []);
+
+  const prepararBaseDeDatos = async () => {
+    try {
+      await initLocalDatabase();
+      setDbLista(true);
+    } catch (error) {
+      console.error("Fallo al inicializar la base de datos:", error);
+    }
+  };
 
   const cargarCalles = async () => {
     try {
@@ -29,6 +40,7 @@ export default function App() {
       console.log("SOLO ARRAY:", response.data);
 
       setCalles(response.data);
+      setDbLista(true);
     } catch (error) {
       console.log(error);
     }
@@ -73,7 +85,7 @@ export default function App() {
 
         <FlatList
           data={calles}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id.toString()}
           initialNumToRender={10}
           maxToRenderPerBatch={10}
           windowSize={5}
@@ -86,6 +98,18 @@ export default function App() {
             </View>
           )}
         />
+
+        <View style={styles.dbStatusContainer}>
+          <Text
+            style={{
+              color: dbLista ? "#03DAC6" : "#CF6679",
+              fontWeight: "bold",
+              fontSize: 16,
+            }}
+          >
+            Estado DB Local: {dbLista ? "Inicializada" : "Cargando..."}
+          </Text>
+        </View>
 
       </View>
 
@@ -180,5 +204,14 @@ const styles = StyleSheet.create({
 
   streetText: {
     color: "#FFFFFF",
+  },
+
+  dbStatusContainer: {
+    backgroundColor: "#2A2A2A",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 20,
+    width: "100%",
+    alignItems: "center",
   },
 });
