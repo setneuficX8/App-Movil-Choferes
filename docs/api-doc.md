@@ -1,0 +1,1102 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "API de Recolección de Residuos",
+    "description": "Documentación de la API para el sistema de gestión de rutas de recolección.",
+    "contact": {
+      "email": "soporte@tuempresa.com"
+    },
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/calles": {
+      "get": {
+        "tags": [
+          "Calles"
+        ],
+        "summary": "Listar todas las calles",
+        "description": "Devuelve una lista de todas las calles disponibles en el sistema. Es un recurso global y no se filtra por perfil.",
+        "operationId": "6f66bb59913021b7f43a06001656ac1a",
+        "responses": {
+          "200": {
+            "description": "Operación exitosa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Calle"
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/calles/{id}": {
+      "get": {
+        "tags": [
+          "Calles"
+        ],
+        "summary": "Obtener detalles de una calle",
+        "description": "Devuelve los detalles de una calle específica, incluyendo su geometría.",
+        "operationId": "966deaff98560e851418861a9af2b25a",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID de la calle",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "a1b2c3d4-e5f6-7890-abcd-1234567890ab"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalles de la calle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Calle"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Calle no encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Calle no encontrada"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/perfiles": {
+      "get": {
+        "tags": [
+          "Perfiles"
+        ],
+        "summary": "Listar todos los perfiles (Deshabilitado)",
+        "description": "Este endpoint ha sido deshabilitado por seguridad para evitar la exposición de los UUIDs de los perfiles.",
+        "operationId": "d8b5e4eedff5983e8d9b00092e706048",
+        "responses": {
+          "403": {
+            "description": "Acceso denegado"
+          }
+        }
+      }
+    },
+    "/api/recorridos/{recorrido}/posiciones": {
+      "get": {
+        "tags": [
+          "Posiciones"
+        ],
+        "summary": "Listar posiciones de un recorrido",
+        "operationId": "d48be9ac413dcd1bb7645b6de7fa8308",
+        "parameters": [
+          {
+            "name": "recorrido",
+            "in": "path",
+            "description": "ID del recorrido",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "perfil_id",
+            "in": "query",
+            "description": "UUID del perfil propietario para verificar el permiso.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de posiciones."
+          },
+          "403": {
+            "description": "Acción no autorizada."
+          },
+          "404": {
+            "description": "Recorrido no encontrado."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Posiciones"
+        ],
+        "summary": "Registrar una nueva posición",
+        "operationId": "7bd4f3a61bc3502236f14343142aec81",
+        "parameters": [
+          {
+            "name": "recorrido",
+            "in": "path",
+            "description": "ID del recorrido",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "lat",
+                  "lon",
+                  "perfil_id"
+                ],
+                "properties": {
+                  "lat": {
+                    "type": "number",
+                    "format": "float",
+                    "example": 3.42158
+                  },
+                  "lon": {
+                    "type": "number",
+                    "format": "float",
+                    "example": -76.5205
+                  },
+                  "perfil_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Posición registrada."
+          },
+          "403": {
+            "description": "Acción no autorizada."
+          },
+          "422": {
+            "description": "Validación fallida."
+          }
+        }
+      }
+    },
+    "/api/misrecorridos": {
+      "get": {
+        "tags": [
+          "Recorridos"
+        ],
+        "summary": "Listar recorridos por perfil",
+        "operationId": "42fde509675f53c0ace1ff7bd2ef0a0b",
+        "parameters": [
+          {
+            "name": "perfil_id",
+            "in": "query",
+            "description": "UUID del perfil para filtrar los recorridos.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de recorridos."
+          },
+          "422": {
+            "description": "Error de validación."
+          }
+        }
+      }
+    },
+    "/api/recorridos/iniciar": {
+      "post": {
+        "tags": [
+          "Recorridos"
+        ],
+        "summary": "Iniciar un nuevo recorrido",
+        "description": "Crea un nuevo registro de recorrido asociado a un perfil.",
+        "operationId": "9b4313ee2eccaca62aad276c7de9e64e",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "ruta_id",
+                  "vehiculo_id",
+                  "perfil_id"
+                ],
+                "properties": {
+                  "ruta_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "vehiculo_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "perfil_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorrido iniciado exitosamente."
+          },
+          "422": {
+            "description": "Datos de validación inválidos."
+          }
+        }
+      }
+    },
+    "/api/recorridos/{recorrido}/finalizar": {
+      "post": {
+        "tags": [
+          "Recorridos"
+        ],
+        "summary": "Finalizar un recorrido existente",
+        "operationId": "137a4cd897a71f875627eda1291cf3c3",
+        "parameters": [
+          {
+            "name": "recorrido",
+            "in": "path",
+            "description": "ID del recorrido a finalizar.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "perfil_id"
+                ],
+                "properties": {
+                  "perfil_id": {
+                    "description": "ID del perfil propietario del recorrido.",
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recorrido finalizado."
+          },
+          "403": {
+            "description": "Acción no autorizada. El perfil no corresponde."
+          },
+          "404": {
+            "description": "Recorrido no encontrado."
+          }
+        }
+      }
+    },
+    "/api/recorridos/posiciones/{posicion_id}/imagen": {
+      "get": {
+        "tags": [
+          "Recorridos"
+        ],
+        "summary": "Obtener imagen de una posición",
+        "description": "Devuelve la imagen en formato WEBP asociada a la posición indicada.",
+        "operationId": "1b9e43184281d12a5845e58df59d6f91",
+        "parameters": [
+          {
+            "name": "posicion_id",
+            "in": "path",
+            "description": "UUID de la posición.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Imagen de la posición."
+          },
+          "404": {
+            "description": "Posición o imagen no encontrada."
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Recorridos"
+        ],
+        "summary": "Subir imagen de una posición",
+        "description": "Permite registrar o actualizar la imagen asociada a una posición específica de un recorrido. La imagen se recibe en formato Base64, se procesa para que su lado mayor no supere los 256px, se mantiene la proporción original y se almacena en formato WEBP. Solo se permite la operación si el recorrido asociado se encuentra en estado En Curso.",
+        "operationId": "c297b4a31d64b53133164d7056e28fe4",
+        "parameters": [
+          {
+            "name": "posicion_id",
+            "in": "path",
+            "description": "UUID de la posición a la que se asocia la imagen.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "imagen_base64"
+                ],
+                "properties": {
+                  "imagen_base64": {
+                    "description": "Imagen codificada en Base64. Puede incluir el prefijo data URI (data:image/jpeg;base64,...) o ser Base64 puro.",
+                    "type": "string",
+                    "example": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..."
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Imagen registrada correctamente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Imagen registrada correctamente."
+                    },
+                    "data": {
+                      "properties": {
+                        "posicion_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "imagen": {
+                          "type": "string",
+                          "example": "posiciones/uuid.webp"
+                        },
+                        "url": {
+                          "type": "string",
+                          "example": "https://dominio.com/storage/posiciones/uuid.webp"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "La posición indicada no existe."
+          },
+          "409": {
+            "description": "El recorrido asociado no se encuentra en curso."
+          },
+          "422": {
+            "description": "Datos incompletos o imagen inválida."
+          },
+          "500": {
+            "description": "Error interno al procesar la imagen."
+          }
+        }
+      }
+    },
+    "/api/rutas": {
+      "get": {
+        "tags": [
+          "Rutas"
+        ],
+        "summary": "Listar rutas por perfil",
+        "description": "Devuelve todas las rutas asociadas al perfil especificado por su UUID.",
+        "operationId": "321da46640e0871d972e97900aedc898",
+        "parameters": [
+          {
+            "name": "perfil_id",
+            "in": "query",
+            "description": "UUID del perfil",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "a1b2c3d4-e5f6-7890-abcd-1234567890ab"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de rutas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Ruta"
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validación fallida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "El campo perfil_id es obligatorio."
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Rutas"
+        ],
+        "summary": "Crear una nueva ruta",
+        "description": "Envía 'shape' (GeoJSON como cadena u objeto) O 'calles_ids' (array de UUIDs). Debe venir uno de los dos.",
+        "operationId": "eeb1f1beda52bbfcc633c90c8b4f2998",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "nombre_ruta",
+                  "perfil_id"
+                ],
+                "properties": {
+                  "nombre_ruta": {
+                    "type": "string",
+                    "example": "Ruta Solo Geometría"
+                  },
+                  "perfil_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "18851282-1a08-42b7-9384-243cc2ead349"
+                  },
+                  "shape": {
+                    "description": "Obligatorio si 'calles_ids' está ausente.",
+                    "nullable": true,
+                    "oneOf": [
+                      {
+                        "description": "GeoJSON como string",
+                        "type": "string"
+                      },
+                      {
+                        "description": "GeoJSON como objeto",
+                        "type": "object"
+                      }
+                    ]
+                  },
+                  "calles_ids": {
+                    "description": "Obligatorio si 'shape' está ausente.",
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "nullable": true
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ruta creada exitosamente."
+          },
+          "422": {
+            "description": "Validación fallida."
+          },
+          "500": {
+            "description": "Error de servidor."
+          }
+        }
+      }
+    },
+    "/api/rutas/{id}": {
+      "get": {
+        "tags": [
+          "Rutas"
+        ],
+        "summary": "Obtener detalles de una ruta",
+        "description": "Devuelve los detalles de una ruta, incluyendo geometría, horarios y calles asociadas. Requiere autorización a través del perfil.",
+        "operationId": "e50d5e43892d7179b9717dedf4b423b5",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "ID de la ruta",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "perfil_id",
+            "in": "query",
+            "description": "ID del perfil propietario para validar autorización",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalles de la ruta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ruta"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso no autorizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "No autorizado para ver esta ruta."
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ruta no encontrada"
+          }
+        }
+      }
+    },
+    "/api/vehiculos": {
+      "get": {
+        "tags": [
+          "Vehiculos"
+        ],
+        "summary": "Listar vehículos por perfil",
+        "description": "Devuelve una lista paginada de vehículos asociados a un perfil específico.",
+        "operationId": "b912521b0e41dec60b1fd4d98a0e06fe",
+        "parameters": [
+          {
+            "name": "perfil_id",
+            "in": "query",
+            "description": "UUID del perfil para filtrar los vehículos.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de vehículos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Vehiculo"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Vehiculos"
+        ],
+        "summary": "Crear un nuevo vehículo",
+        "operationId": "20a2f18df869f0d5e7d5ddce18285c29",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "placa",
+                  "perfil_id"
+                ],
+                "properties": {
+                  "placa": {
+                    "type": "string",
+                    "example": "XYZ-789"
+                  },
+                  "marca": {
+                    "type": "string",
+                    "example": "Ford"
+                  },
+                  "modelo": {
+                    "type": "string",
+                    "example": "2023"
+                  },
+                  "activo": {
+                    "type": "boolean",
+                    "example": true
+                  },
+                  "perfil_id": {
+                    "description": "ID del perfil propietario.",
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Vehículo creado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehiculo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error de validación."
+          }
+        }
+      }
+    },
+    "/api/vehiculos/{id}": {
+      "get": {
+        "tags": [
+          "Vehiculos"
+        ],
+        "summary": "Obtener detalles de un vehículo",
+        "operationId": "e7cea4106c3b515e1fd8f8fc20a01096",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "perfil_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalles del vehículo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehiculo"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso no autorizado."
+          },
+          "404": {
+            "description": "Vehículo no encontrado."
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Vehiculos"
+        ],
+        "summary": "Actualizar un vehículo",
+        "operationId": "96084827a5107cad2b7ea8faa4eaf765",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "perfil_id"
+                ],
+                "properties": {
+                  "placa": {
+                    "type": "string"
+                  },
+                  "marca": {
+                    "type": "string"
+                  },
+                  "modelo": {
+                    "type": "string"
+                  },
+                  "activo": {
+                    "type": "boolean"
+                  },
+                  "perfil_id": {
+                    "description": "ID del perfil para autorización.",
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Vehículo actualizado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vehiculo"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Acceso no autorizado."
+          },
+          "404": {
+            "description": "Vehículo no encontrado."
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Vehiculos"
+        ],
+        "summary": "Eliminar un vehículo",
+        "operationId": "9b11c434f19fa00c1d0b5d3fc9ca526e",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "perfil_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Vehículo eliminado."
+          },
+          "403": {
+            "description": "Acceso no autorizado."
+          },
+          "404": {
+            "description": "Vehículo no encontrado."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Calle": {
+        "required": [
+          "id",
+          "nombre",
+          "shape"
+        ],
+        "properties": {
+          "id": {
+            "description": "ID único de la calle",
+            "type": "string",
+            "format": "uuid"
+          },
+          "nombre": {
+            "description": "Nombre de la calle",
+            "type": "string",
+            "example": "Calle 6"
+          },
+          "shape": {
+            "description": "Geometría de la calle en formato GeoJSON",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Perfil": {
+        "required": [
+          "id",
+          "nombre_perfil"
+        ],
+        "properties": {
+          "id": {
+            "description": "ID único del perfil",
+            "type": "string",
+            "format": "uuid"
+          },
+          "nombre_perfil": {
+            "description": "Nombre del perfil de trabajo",
+            "type": "string",
+            "example": "Perfil 1"
+          },
+          "created_at": {
+            "description": "Fecha de creación",
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "description": "Fecha de última actualización",
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "type": "object"
+      },
+      "Posicion": {
+        "required": [
+          "id",
+          "recorrido_id",
+          "geom",
+          "capturado_ts"
+        ],
+        "properties": {
+          "id": {
+            "description": "ID único del registro de posición",
+            "type": "string",
+            "format": "uuid"
+          },
+          "recorrido_id": {
+            "description": "ID del recorrido al que pertenece el punto",
+            "type": "string",
+            "format": "uuid"
+          },
+          "capturado_ts": {
+            "description": "Fecha y hora exactas de la captura de la coordenada",
+            "type": "string",
+            "format": "date-time"
+          },
+          "geom": {
+            "description": "Geometría del punto en formato GeoJSON",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Ruta": {
+        "required": [
+          "id",
+          "nombre_ruta",
+          "perfil_id",
+          "shape"
+        ],
+        "properties": {
+          "id": {
+            "description": "ID único de la ruta",
+            "type": "string",
+            "format": "uuid"
+          },
+          "perfil_id": {
+            "description": "ID del perfil al que pertenece la ruta",
+            "type": "string",
+            "format": "uuid"
+          },
+          "nombre_ruta": {
+            "description": "Nombre de la ruta",
+            "type": "string",
+            "example": "Ruta Centro"
+          },
+          "color_hex": {
+            "description": "Color hexadecimal para representar la ruta",
+            "type": "string",
+            "example": "#FF5733"
+          },
+          "shape": {
+            "description": "Geometría de la ruta en formato GeoJSON",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "Fecha de creación",
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "description": "Fecha de última actualización",
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "type": "object"
+      },
+      "Vehiculo": {
+        "required": [
+          "id",
+          "placa",
+          "perfil_id"
+        ],
+        "properties": {
+          "id": {
+            "description": "ID único del vehículo",
+            "type": "string",
+            "format": "uuid"
+          },
+          "perfil_id": {
+            "description": "ID del perfil al que pertenece el vehículo",
+            "type": "string",
+            "format": "uuid"
+          },
+          "placa": {
+            "description": "Placa del vehículo",
+            "type": "string",
+            "example": "ABC-123"
+          },
+          "marca": {
+            "description": "Marca del vehículo",
+            "type": "string",
+            "example": "Chevrolet"
+          },
+          "modelo": {
+            "description": "Año del modelo del vehículo",
+            "type": "string",
+            "example": "2022"
+          },
+          "created_at": {
+            "description": "Fecha de creación",
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "description": "Fecha de última actualización",
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Calles",
+      "description": "Calles"
+    },
+    {
+      "name": "Perfiles",
+      "description": "Perfiles"
+    },
+    {
+      "name": "Posiciones",
+      "description": "Posiciones"
+    },
+    {
+      "name": "Recorridos",
+      "description": "Recorridos"
+    },
+    {
+      "name": "Rutas",
+      "description": "Rutas"
+    },
+    {
+      "name": "Vehiculos",
+      "description": "Vehiculos"
+    }
+  ]
+}
