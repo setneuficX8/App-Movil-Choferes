@@ -5,8 +5,8 @@ import "react-native-url-polyfill/auto"; // para que supabase funcione correctam
 import AsyncStorage from "@react-native-async-storage/async-storage"; // para almacenar el token de autenticación de supabase
 
 // credenciales de supabase (usando variables de entorno de Expo)
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.EXPO_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_SUPABASE_ANON_KEY;
 
 // Cliente de Supabase para interactuar con la base de datos
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
