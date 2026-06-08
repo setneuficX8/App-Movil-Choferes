@@ -15,15 +15,38 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.recosombra.choferapp",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
     },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Permite que la app rastree las rutas de recolección en segundo plano de forma ininterrumpida.",
+          "locationWhenInUsePermission": "Permite acceder a la ubicación del vehículo durante la jornada laboral.",
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ]
+    ],
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "06fdd5e2-2d7c-4051-9af2-ea63ee4d5e54"
+      }
     }
   }
 }
