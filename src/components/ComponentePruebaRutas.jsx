@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import { iniciarTrackingGPS, detenerTrackingGPS } from '../services/geolocalizacionService';
 import { obtenerMetricasLocales } from '../database/posicionesQueries';
+import { STORAGE_KEYS } from '../config/constanst'; // INCLUSIÓN OBLIGATORIA
 
 const ComponentePruebaRutas = () => {
   const [trackingActivo, setTrackingActivo] = useState(false);
@@ -25,14 +26,15 @@ const ComponentePruebaRutas = () => {
 
   useEffect(() => {
     refrescarInterfaz();
-    const timer = setInterval(refrescarInterfaz, 3000); // Consulta reactiva cada 3 segundos
+    const timer = setInterval(refrescarInterfaz, 3000); // Polling aceptable solo para modo debug
     return () => clearInterval(timer);
   }, []);
 
   const ejecutarInicio = async () => {
     try {
       const idSimulado = Crypto.randomUUID();
-      await AsyncStorage.setItem('recorrido_activo_id', idSimulado);
+      
+      await AsyncStorage.setItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID, idSimulado);
       setRecorridoId(idSimulado);
       
       await iniciarTrackingGPS();
@@ -46,7 +48,8 @@ const ComponentePruebaRutas = () => {
   const ejecutarParada = async () => {
     try {
       await detenerTrackingGPS();
-      await AsyncStorage.removeItem('recorrido_activo_id');
+     
+      await AsyncStorage.removeItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
       setRecorridoId('');
       setTrackingActivo(false);
       Alert.alert('Detenido', 'El hilo del GPS se ha cerrado.');
@@ -55,6 +58,7 @@ const ComponentePruebaRutas = () => {
     }
   };
 
+  // ... (El resto del render JSX se mantiene exactamente igual) ...
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Auditoría Interna SQLite</Text>
@@ -69,8 +73,8 @@ const ComponentePruebaRutas = () => {
           <Text style={styles.metricLabel}>Pendientes Supabase</Text>
         </View>
         <View style={styles.metricCard}>
-          <Text style={styles.metricValue}>{pendientesAPI}</Text>
           <Text style={styles.metricLabel}>Pendientes API</Text>
+          <Text style={styles.metricValue}>{pendientesAPI}</Text>
         </View>
       </View>
 

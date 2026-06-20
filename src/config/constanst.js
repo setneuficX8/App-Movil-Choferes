@@ -5,8 +5,9 @@ import "react-native-url-polyfill/auto"; // para que supabase funcione correctam
 import AsyncStorage from "@react-native-async-storage/async-storage"; // para almacenar el token de autenticación de supabase
 
 // credenciales de supabase (usando variables de entorno de Expo)
-const supabaseUrl = process.env.EXPO_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_SUPABASE_ANON_KEY;
+const supabaseUrl = "https://yktyfiapcjsqdtrtmtqb.supabase.co";
+const supabaseAnonKey =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrdHlmaWFwY2pzcWR0cnRtdHFiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwMzEyMTYsImV4cCI6MjA3NDYwNzIxNn0.xeRt11ehYqHdwy9FHBw4cdZhsWcj8X3pYBWS-Vq4azY";
 
 // Cliente de Supabase para interactuar con la base de datos
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -28,3 +29,10 @@ if (Platform.OS !== "web") {
     }
   });
 }
+
+export const TASK_GPS = "BACKGROUND_LOCATION_TASK";
+
+export const STORAGE_KEYS = {
+  RECORRIDO_ACTIVO_ID: "recorrido_activo_id",
+  CHOFER_ACTIVO_ID: "chofer_activo_id",
+};
