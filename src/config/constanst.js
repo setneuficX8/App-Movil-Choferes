@@ -30,6 +30,7 @@ if (Platform.OS !== "web") {
   });
 }
 
+export const PERFIL_ID = "4380dc46-398b-441c-a1f1-2567795e8234";
 export const TASK_GPS = "BACKGROUND_LOCATION_TASK";
 
 export const STORAGE_KEYS = {
