@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "App-Movil-Recoleccion",
+    "name": "App Movil Chofer",
     "slug": "App-Movil-Recoleccion",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,10 +13,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.recosombra.choferapp"
+      "bundleIdentifier": "com.universidad.appchoferes",
+      "infoPlist": {
+    "UIBackgroundModes": ["location"]
+  }
     },
     "android": {
-      "package": "com.recosombra.choferapp",
+      "package": "com.universidad.appchoferes",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

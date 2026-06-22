@@ -1,61 +1,14 @@
 import * as Location from "expo-location";
-import * as TaskManager from "expo-task-manager";
-import * as Crypto from "expo-crypto";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { insertarPosicionLocal } from "../database/posicionesQueries";
-
-export const LOCATION_TASK_NAME = "BACKGROUND_LOCATION_TASK";
-
-TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
-  if (error) {
-    console.error("[LocationTask] Error nativo en background:", error.message);
-    return;
-  }
-
-  if (data) {
-    const { locations } = data;
-    if (!locations || locations.length === 0) return;
-
-    try {
-      const location = locations[0];
-      const latitud = location.coords.latitude;
-      const longitud = location.coords.longitude;
-      const timestamp_captura = new Date(location.timestamp).toISOString();
-
-      // Recuperamos el ID del recorrido almacenado en el inicio de la prueba
-      const recorridoIdLocal = await AsyncStorage.getItem(
-        "recorrido_activo_id",
-      );
-      if (!recorridoIdLocal) return;
-
-      const idCriptografico = Crypto.randomUUID(); // Formato UUID estricto para evitar colisiones
-
-      // REGLA DE COHERENCIA: Insertamos omitiendo velocidad_ms para no romper tu SQLite
-      await insertarPosicionLocal({
-        id: idCriptografico,
-        recorrido_id: recorridoIdLocal,
-        latitud,
-        longitud,
-        timestamp_captura,
-      });
-
-      console.log(
-        `[LocationTask] SQLite exitoso -> Lat: ${latitud}, Lon: ${longitud}`,
-      );
-    } catch (e) {
-      console.error(
-        "[LocationTask] Fallo crítico de inserción en SQLite:",
-        e.message,
-      );
-    }
-  }
-});
+import { TASK_GPS } from "../config/constanst";
 
 export const iniciarTrackingGPS = async () => {
   try {
-    const isRegistered =
-      await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
-    if (isRegistered) return;
+    // CORRECCIÓN CRÍTICA: Validar si el sensor de ubicación está activo, NO si la tarea está definida.
+    const hasStarted = await Location.hasStartedLocationUpdatesAsync(TASK_GPS);
+    if (hasStarted) {
+      console.log("[GPS-Service] El tracking ya estaba en ejecución.");
+      return;
+    }
 
     const { status: fgStatus } =
       await Location.requestForegroundPermissionsAsync();
@@ -67,20 +20,19 @@ export const iniciarTrackingGPS = async () => {
     if (bgStatus !== "granted")
       throw new Error("Permisos background denegados.");
 
-    await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-      accuracy: Location.Accuracy.BestForNavigation, // Máxima precisión
-      distanceInterval: 15, // Cada 15 metros reales
-      deferredUpdatesInterval: 5000,
+    await Location.startLocationUpdatesAsync(TASK_GPS, {
+      accuracy: Location.Accuracy.High, // NOTA: "High" es el nivel más preciso, pero consume más batería.
+      distanceInterval: 10, // NOTA: Tienes que moverte físicamente 15 metros para que esto dispare
+      deferredUpdatesInterval: 5000, // NOTA: Si el dispositivo no se mueve, esto asegura que al menos cada 5 segundos se intente obtener una ubicación (útil para detectar paradas)
       showsBackgroundLocationIndicator: true,
-      pausesUpdatesAutomatically: false, // Bloquea la suspensión en iOS/Android
+      pausesUpdatesAutomatically: false,
       foregroundService: {
-        notificationTitle: "Recorrido de Prueba Activo",
-        notificationBody:
-          "Escribiendo coordenadas directamente en reco_sombra.db...",
+        notificationTitle: "Recorrido Activo",
+        notificationBody: "Escribiendo coordenadas en SQLite...",
         notificationColor: "#10b981",
       },
     });
-    console.log("[GPS-Service] Hilo nativo en ejecución.");
+    console.log("[GPS-Service] Sensor nativo de ubicación inicializado.");
   } catch (err) {
     console.error("[GPS-Service] Error al inicializar:", err.message);
     throw err;
@@ -88,10 +40,9 @@ export const iniciarTrackingGPS = async () => {
 };
 
 export const detenerTrackingGPS = async () => {
-  const isRegistered =
-    await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
-  if (isRegistered) {
-    await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+  const hasStarted = await Location.hasStartedLocationUpdatesAsync(TASK_GPS);
+  if (hasStarted) {
+    await Location.stopLocationUpdatesAsync(TASK_GPS);
     console.log("[GPS-Service] Hilo nativo liberado.");
   }
 };
