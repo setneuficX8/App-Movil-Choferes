@@ -7,11 +7,15 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const iniciarNuevoRecorrido = async ({
   choferId,
   asignacionId,
-  vehiculoIdInterno, // UUID para la relación FK en Supabase
-  vehiculoIdExterno, // text para el payload de la API externa
+  vehiculoIdInterno,
+  vehiculoIdExterno,
   rutaIdBigInt,
   rutaIdUuid,
 }) => {
+  // PURGA ESTRICTA PRE-INICIALIZACIÓN: Evitar resurrección de IDs zombis
+  await AsyncStorage.removeItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
+  await AsyncStorage.removeItem("recorrido_activo_id_api");
+
   const recorridoLocalId = Crypto.randomUUID();
 
   // 1. Persistencia inicial en Supabase (Usando la clave interna UUID)
@@ -77,8 +81,6 @@ export const iniciarNuevoRecorrido = async ({
   }
 };
 
-// Añadir al final de src/services/recorridoService.js
-
 export const finalizarRecorridoActivo = async () => {
   const recorridoLocalId = await AsyncStorage.getItem(
     STORAGE_KEYS.RECORRIDO_ACTIVO_ID,
@@ -125,46 +127,56 @@ export const auditarVigenciaRecorrido = async () => {
   const recorridoLocalId = await AsyncStorage.getItem(
     STORAGE_KEYS.RECORRIDO_ACTIVO_ID,
   );
-  if (!recorridoLocalId) return true; // No hay estado activo, por ende, no hay infracción temporal.
+
+  // Caso 1: No hay recorrido en curso. Todo está en orden.
+  if (!recorridoLocalId) return { expirado: false, zombie: false };
 
   try {
-    // Consulta a la fuente de verdad (Supabase)
     const { data, error } = await supabase
       .from("recorridos")
       .select("fecha_inicio, estado")
       .eq("id", recorridoLocalId)
       .single();
 
-    if (error || !data) return false;
+    // Caso 2: Caída de red. No podemos auditar. Confiamos en el hardware temporalmente.
+    if (error) {
+      console.warn(
+        "[Auditoría] Falla de red al verificar Supabase:",
+        error.message,
+      );
+      return { expirado: false, zombie: false };
+    }
 
-    // Cálculo del límite de validez
+    // Caso 3: El ID existe en el teléfono pero fue borrado de Supabase (Estado Zombi)
+    if (!data) {
+      console.warn(
+        "[Auditoría] ID Zombi detectado. Purgando almacenamiento local.",
+      );
+      await AsyncStorage.removeItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
+      await AsyncStorage.removeItem("recorrido_activo_id_api");
+      return { expirado: false, zombie: true };
+    }
+
+    // Caso 4: Evaluación Temporal Matemática
     const tiempoInicio = new Date(data.fecha_inicio).getTime();
     const tiempoActual = new Date().getTime();
     const horasTranscurridas = (tiempoActual - tiempoInicio) / (1000 * 60 * 60);
 
     if (horasTranscurridas >= 24) {
-      console.warn(
-        "[Auditoría] El recorrido ha excedido el umbral de 24 horas. Ejecutando suspensión forzosa.",
-      );
-
-      // Aplicación estricta de la regla de negocio
+      console.warn("[Auditoría] Límite de 24h excedido. Suspensión forzosa.");
       await supabase
         .from("recorridos")
-        .update({
-          estado: "suspendido",
-          fecha_fin: new Date().toISOString(),
-        })
+        .update({ estado: "suspendido", fecha_fin: new Date().toISOString() })
         .eq("id", recorridoLocalId);
 
       await AsyncStorage.removeItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
       await AsyncStorage.removeItem("recorrido_activo_id_api");
-
-      return false; // Retorna false para notificar a la UI que el hardware GPS debe ser apagado.
+      return { expirado: true, zombie: false };
     }
 
-    return true;
+    // Caso 5: Recorrido válido y dentro del tiempo.
+    return { expirado: false, zombie: false };
   } catch (err) {
-    console.error("Fallo durante la auditoría temporal:", err.message);
-    return true; // En caso de fallo de red, asumimos que el hardware debe seguir recopilando datos en SQLite.
+    return { expirado: false, zombie: false };
   }
 };

@@ -4,27 +4,30 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { TASK_GPS, STORAGE_KEYS } from "../config/constanst";
 import { insertarPosicionLocal } from "../database/posicionesQueries";
 
+// UMBRAL DE TOLERANCIA ESTRICTA: Se descarta cualquier punto con un margen de error superior a 20 metros.
+const UMBRAL_PRECISION_METROS = 20;
+
 TaskManager.defineTask(TASK_GPS, async ({ data, error }) => {
-  if (error) {
-    console.error("[LocationTask] ERROR NATIVO DEL OS:", error.message);
-    return;
-  }
+  if (error) return; // Silencio en errores de hardware
 
   if (data) {
     try {
-      // Intentamos leer el ID
       const recorridoIdLocal = await AsyncStorage.getItem(
         STORAGE_KEYS.RECORRIDO_ACTIVO_ID,
       );
+      if (!recorridoIdLocal) return;
 
-      if (!recorridoIdLocal) {
+      // Extraer siempre la coordenada más reciente del lote del sensor
+      const location = data.locations[data.locations.length - 1];
+
+      // FILTRO DE RUIDO GEOMÉTRICO (Signal Noise Rejection)
+      if (location.coords.accuracy > UMBRAL_PRECISION_METROS) {
         console.warn(
-          "[LocationTask] ⚠️ ABORTO: No hay ID de recorrido. ¡Verifica el botón de iniciar recorrido en la UI!",
+          `[Hardware GPS] Coordenada rechazada. Nivel de ruido inaceptable: ${location.coords.accuracy}m`,
         );
-        return; // <--- Aquí es donde apuesto que tu código estaba muriendo.
+        return;
       }
 
-      const location = data.locations[0];
       const latitud = location.coords.latitude;
       const longitud = location.coords.longitude;
       const timestamp_captura = new Date(location.timestamp).toISOString();
@@ -38,7 +41,7 @@ TaskManager.defineTask(TASK_GPS, async ({ data, error }) => {
         timestamp_captura,
       });
     } catch (e) {
-      console.error("[LocationTask] ❌ EXCEPCIÓN CRÍTICA:", e);
+      console.error("[LocationTask] Excepción de subproceso:", e.message);
     }
   }
 });

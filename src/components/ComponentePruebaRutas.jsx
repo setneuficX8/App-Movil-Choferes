@@ -67,10 +67,19 @@ const ComponentePruebaRutas = () => {
   };
 
   // AUDITORÍA DE CICLO DE VIDA (Garbage Collector)
-  useEffect(() => {
+ useEffect(() => {
     const verificarCaducidad = async () => {
-      const esValido = await auditarVigenciaRecorrido();
-      if (!esValido) {
+      const estadoAuditoria = await auditarVigenciaRecorrido();
+      
+      if (estadoAuditoria.zombie) {
+        // Apagado silencioso. El usuario borró la base de datos a mano.
+        await detenerTrackingGPS();
+        setRecorridoIdLocal('');
+        setRecorridoIdApi('');
+        setTrackingActivo(false);
+      } 
+      else if (estadoAuditoria.expirado) {
+        // Apagado con alerta. Es una expiración real de 24 horas.
         await detenerTrackingGPS();
         setRecorridoIdLocal('');
         setRecorridoIdApi('');
@@ -79,10 +88,8 @@ const ComponentePruebaRutas = () => {
       }
     };
 
-    // Evaluar al inicio
     verificarCaducidad();
 
-    // Evaluar cada vez que la app vuelve a primer plano
     const suscripcionAppState = AppState.addEventListener('change', nextAppState => {
       if (nextAppState === 'active') verificarCaducidad();
     });
