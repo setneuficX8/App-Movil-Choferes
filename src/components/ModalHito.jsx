@@ -1,61 +1,76 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, DeviceEventEmitter } from 'react-native';
-import { EVENTOS,STORAGE_KEYS } from '../config/constanst';
+import * as Crypto from "expo-crypto";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import { EVENTOS, STORAGE_KEYS } from '../config/constanst';
 import { insertarHitoLocal } from "../database/hitosQueries";
+import { PruebaCamaraHito } from './PruebaCamaraHito'; // Importación crítica de la cámara
 
 export const ModalHito = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [datosHito, setDatosHito] = useState(null);
+  const [modoCamara, setModoCamara] = useState(false); // Switch de estado de la interfaz
 
   useEffect(() => {
-    // Suscripción al evento del hilo en segundo plano
     const suscripcion = DeviceEventEmitter.addListener(EVENTOS.HITO_ALCANZADO, (payload) => {
       setDatosHito(payload);
+      setModoCamara(false); // Asegurar que inicie en el diálogo
       setIsVisible(true);
     });
 
-    return () => suscripcion.remove(); // Prevención de fugas de memoria
+    return () => suscripcion.remove();
   }, []);
 
- const persistirHito = async (base64Optimizada = null) => {
-  try {
-    const recorridoIdLocal = await AsyncStorage.getItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
-    const ultimaUbicacionStr = await AsyncStorage.getItem(STORAGE_KEYS.ULTIMA_UBICACION);
-    if (!recorridoIdLocal || !ultimaUbicacionStr) return;
+  // Función de Persistencia Transaccional (Búfer Offline)
+  const persistirHito = async (base64Optimizada = null) => {
+    try {
+      const recorridoIdLocal = await AsyncStorage.getItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
+      const ultimaUbicacionStr = await AsyncStorage.getItem(STORAGE_KEYS.ULTIMA_UBICACION);
+      
+      if (!recorridoIdLocal || !ultimaUbicacionStr) {
+        throw new Error("Pérdida de contexto geográfico.");
+      }
 
-    const { latitud, longitud } = JSON.parse(ultimaUbicacionStr);
-    const hitoId = Crypto.randomUUID();
+      const { latitud, longitud } = JSON.parse(ultimaUbicacionStr);
+      const hitoId = Crypto.randomUUID();
 
-    await insertarHitoLocal({
-      id: hitoId,
-      recorrido_id: recorridoIdLocal,
-      numero_hito: datosHito.numero_hito,
-      km_acumulado: datosHito.km_acumulado,
-      latitud,
-      longitud,
-      tiene_foto: !!base64Optimizada,
-      foto_base64: base64Optimizada
-    });
-  } catch (error) {
-    console.error("Fallo al persistir el hito:", error);
-  } finally {
-    setIsVisible(false); // Liberar interfaz gráfica inmediatamente
-  }
-};
+      await insertarHitoLocal({
+        id: hitoId,
+        recorrido_id: recorridoIdLocal,
+        numero_hito: datosHito.numero_hito,
+        km_acumulado: datosHito.km_acumulado,
+        latitud,
+        longitud,
+        tiene_foto: !!base64Optimizada,
+        foto_base64: base64Optimizada
+      });
 
-const handleTomarFoto = async () => {
-  // Asumiendo que invocas el flujo de tu stub PruebaCamaraHito y obtienes la cadena
-  const base64Optimizada = await abrirCamaraYProcesar(); 
-   await persistirHito(base64Optimizada);
-  console.log("Integra aquí la cámara de la Tarea 6. Cuando devuelva el base64, llama a persistirHito(base64).");
-};
-
-const handleOmitir = async () => {
-  await persistirHito(null);
-};
+      console.log(`[ModalHito] Hito ${datosHito.numero_hito} guardado en SQLite.`);
+    } catch (error) {
+      console.error("[ModalHito] Fallo estructural al persistir el hito:", error);
+    } finally {
+      // Liberación de recursos y desmontaje visual
+      setModoCamara(false);
+      setIsVisible(false);
+    }
+  };
 
   if (!isVisible) return null;
 
+  // ESTADO B: CÁMARA ACTIVA
+  if (modoCamara) {
+    return (
+      <Modal transparent={false} animationType="slide" visible={isVisible}>
+        <PruebaCamaraHito 
+          onFotoCapturada={(base64) => persistirHito(base64)} // Inyección del Callback 1
+          onCancelar={() => setModoCamara(false)}             // Inyección del Callback 2
+        />
+      </Modal>
+    );
+  }
+
+  // ESTADO A: DIÁLOGO DE DECISIÓN
   return (
     <Modal transparent={true} animationType="fade" visible={isVisible}>
       <View style={styles.overlay}>
@@ -67,11 +82,11 @@ const handleOmitir = async () => {
           <Text style={styles.instruction}>¿Deseas capturar evidencia fotográfica de la ruta?</Text>
 
           <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.btnSkip} onPress={handleOmitir}>
+            <TouchableOpacity style={styles.btnSkip} onPress={() => persistirHito(null)}>
               <Text style={styles.btnText}>OMITIR</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.btnCamera} onPress={handleTomarFoto}>
+            <TouchableOpacity style={styles.btnCamera} onPress={() => setModoCamara(true)}>
               <Text style={styles.btnText}>📸 TOMAR FOTO</Text>
             </TouchableOpacity>
           </View>

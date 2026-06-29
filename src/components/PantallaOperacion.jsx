@@ -138,7 +138,6 @@ const PantallaOperacion = () => {
   return (
     <View style={styles.container}>
       <ModalHito />
-      <PruebaCamaraHito/>
       {/* Header Operativo */}
       <View style={styles.header}>
         <Text style={styles.title}>CÁPSULA DE MANDO</Text>
