@@ -21,9 +21,9 @@ export const iniciarTrackingGPS = async () => {
       throw new Error("Permisos background denegados.");
 
     await Location.startLocationUpdatesAsync(TASK_GPS, {
-      accuracy: Location.Accuracy.BestForNavigation, // NOTA: Se requiere la máxima precisión para el seguimiento de recorridos.
+      accuracy: Location.Accuracy.BestForNavigation, //  Se requiere la máxima precisión para el seguimiento de recorridos.
       distanceInterval: 10, // NOTA: Tienes que moverte físicamente 15 metros para que esto dispare
-      deferredUpdatesInterval: 5000, // NOTA: Si el dispositivo no se mueve, esto asegura que al menos cada 5 segundos se intente obtener una ubicación (útil para detectar paradas)
+      deferredUpdatesInterval: 5000, //  Si el dispositivo no se mueve, esto asegura que al menos cada 5 segundos se intente obtener una ubicación (útil para detectar paradas)
       showsBackgroundLocationIndicator: true,
       pausesUpdatesAutomatically: false,
       foregroundService: {

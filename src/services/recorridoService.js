@@ -12,9 +12,12 @@ export const iniciarNuevoRecorrido = async ({
   rutaIdBigInt,
   rutaIdUuid,
 }) => {
-  // PURGA ESTRICTA PRE-INICIALIZACIÓN: Evitar resurrección de IDs zombis
+  // Limpieza preventiva de contexto previo
   await AsyncStorage.removeItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
   await AsyncStorage.removeItem("recorrido_activo_id_api");
+  await AsyncStorage.removeItem(STORAGE_KEYS.KM_ACUMULADO);
+  await AsyncStorage.removeItem(STORAGE_KEYS.ULTIMA_UBICACION);
+  await AsyncStorage.removeItem(STORAGE_KEYS.ULTIMO_HITO_KM);
 
   const recorridoLocalId = Crypto.randomUUID();
 
