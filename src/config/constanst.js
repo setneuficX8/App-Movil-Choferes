@@ -44,3 +44,9 @@ export const STORAGE_KEYS = {
 export const EVENTOS = {
   HITO_ALCANZADO: "HITO_ALCANZADO",
 };
+
+export const IMAGEN_CONFIG = {
+  MAX_LADO_PX: 256,
+  CALIDAD_EXPO: 0.85,
+  FORMATO: "webp",
+};

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, DeviceEventEmitter } from 'react-native';
-import { EVENTOS } from '../config/constanst';
+import { EVENTOS,STORAGE_KEYS } from '../config/constanst';
+import { insertarHitoLocal } from "../database/hitosQueries";
 
 export const ModalHito = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -16,17 +17,42 @@ export const ModalHito = () => {
     return () => suscripcion.remove(); // Prevención de fugas de memoria
   }, []);
 
-  const handleTomarFoto = () => {
-    // Aquí implementaremos la Tarea 6 (Cámara) en el futuro
-    console.log("Procediendo a módulo de cámara para el hito:", datosHito.numero_hito);
-    setIsVisible(false);
-  };
+ const persistirHito = async (base64Optimizada = null) => {
+  try {
+    const recorridoIdLocal = await AsyncStorage.getItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
+    const ultimaUbicacionStr = await AsyncStorage.getItem(STORAGE_KEYS.ULTIMA_UBICACION);
+    if (!recorridoIdLocal || !ultimaUbicacionStr) return;
 
-  const handleOmitir = () => {
-    // Tarea 7: Registrar el hito en SQLite sin foto
-    console.log("Hito omitido. Registrando hito sin foto en SQLite...");
-    setIsVisible(false);
-  };
+    const { latitud, longitud } = JSON.parse(ultimaUbicacionStr);
+    const hitoId = Crypto.randomUUID();
+
+    await insertarHitoLocal({
+      id: hitoId,
+      recorrido_id: recorridoIdLocal,
+      numero_hito: datosHito.numero_hito,
+      km_acumulado: datosHito.km_acumulado,
+      latitud,
+      longitud,
+      tiene_foto: !!base64Optimizada,
+      foto_base64: base64Optimizada
+    });
+  } catch (error) {
+    console.error("Fallo al persistir el hito:", error);
+  } finally {
+    setIsVisible(false); // Liberar interfaz gráfica inmediatamente
+  }
+};
+
+const handleTomarFoto = async () => {
+  // Asumiendo que invocas el flujo de tu stub PruebaCamaraHito y obtienes la cadena
+  const base64Optimizada = await abrirCamaraYProcesar(); 
+   await persistirHito(base64Optimizada);
+  console.log("Integra aquí la cámara de la Tarea 6. Cuando devuelva el base64, llama a persistirHito(base64).");
+};
+
+const handleOmitir = async () => {
+  await persistirHito(null);
+};
 
   if (!isVisible) return null;
 

@@ -9,6 +9,7 @@ import { supabase, STORAGE_KEYS, PERFIL_ID } from '../config/constanst';
 import { usePreventRemove } from '@react-navigation/native';
 import Cronometro from './Cronometro';
 import { ModalHito } from './ModalHito';
+import { PruebaCamaraHito } from './PruebaCamaraHito';
 
 const PantallaOperacion = () => {
   const [trackingActivo, setTrackingActivo] = useState(false);
@@ -137,6 +138,7 @@ const PantallaOperacion = () => {
   return (
     <View style={styles.container}>
       <ModalHito />
+      <PruebaCamaraHito/>
       {/* Header Operativo */}
       <View style={styles.header}>
         <Text style={styles.title}>CÁPSULA DE MANDO</Text>
