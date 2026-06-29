@@ -10,7 +10,10 @@ import {
 import { initLocalDatabase } from "./src/database/dbSetup";
 import { supabase } from "./src/config/constanst";
 import LoginScreen from "./src/components/LoginScreen";
-import ComponentePruebaRutas from "./src/components/ComponentePruebaRutas";
+import PantallaOperacion from "./src/components/PantallaOperacion";
+import PerfilChofer from "./src/components/PerfilChofer";
+import { AppNavigator } from "./src/navegacion/AppNavigator";
+import "./src/tasks/locationTask";
 
 export default function App() {
   const [inicializando, setInicializando] = useState(true);
@@ -55,18 +58,7 @@ export default function App() {
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {sesionActiva ? (
-        // Si hay una sesión válida, cargamos el panel de control para que pueda iniciar los recorridos con RLS habilitado
-        <ComponentePruebaRutas />
-      ) : (
-        // Si no hay sesión, forzamos el paso por la Capa de Identidad
-        <LoginScreen onLoginSuccess={(user) => setSesionActiva(user)} />
-      )}
-      <StatusBar style="light" />
-    </SafeAreaView>
-  );
+  return <AppNavigator />;
 }
 
 const styles = StyleSheet.create({
