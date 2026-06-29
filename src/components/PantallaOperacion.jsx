@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator, Platform, AppState } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Platform, AppState, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { usePreventRemove } from '@react-navigation/native';
+
 import { iniciarNuevoRecorrido, finalizarRecorridoActivo, auditarVigenciaRecorrido } from '../services/recorridoService';
 import { iniciarTrackingGPS, detenerTrackingGPS } from '../services/geolocalizacionService';
 import { obtenerMetricasLocales } from '../database/posicionesQueries';
 import { useNetworkSync } from '../hooks/useNetworkSync';
-import { supabase, STORAGE_KEYS, PERFIL_ID } from '../config/constanst'; 
-import { usePreventRemove } from '@react-navigation/native';
+import { supabase, STORAGE_KEYS, EVENTOS } from '../config/constanst'; 
+
 import Cronometro from './Cronometro';
-import { ModalHito } from './ModalHito';
-import { PruebaCamaraHito } from './PruebaCamaraHito';
+import { ModalHito } from './ModalHito'; // Asegurar el montaje del escucha global
 
 const PantallaOperacion = () => {
   const [trackingActivo, setTrackingActivo] = useState(false);
@@ -17,31 +18,31 @@ const PantallaOperacion = () => {
   const [configDinamica, setConfigDinamica] = useState(null);
   const [cargandoConfig, setCargandoConfig] = useState(true);
   const [fechaInicioRecorrido, setFechaInicioRecorrido] = useState(null);
+  
+  // Nuevo estado para telemetría de odómetro visual
+  const [distanciaKm, setDistanciaKm] = useState(0);
 
-  // Estados de Telemetría SQLite
   const [metricas, setMetricas] = useState({ total: 0, supPendientes: 0, apiPendientes: 0 });
 
   useNetworkSync();
 
-  // GUARDIA DE NAVEGACIÓN
-  usePreventRemove(trackingActivo, ({ data }) => {
-    Alert.alert(
-      'Infracción de Protocolo Detectada',
-      'No puedes abandonar la cápsula de mando mientras la telemetría esté activa. Finaliza el recorrido ordenadamente.',
-      [{ text: 'Entendido', style: 'cancel' }]
-    );
+  usePreventRemove(trackingActivo, () => {
+    Alert.alert('Protocolo Activo', 'No puedes abandonar la cápsula de mando con telemetría encendida.');
   });
 
   const refrescarMétricasBúfer = async () => {
     try {
       const result = await obtenerMetricasLocales();
       setMetricas({ total: result.total, supPendientes: result.supPendientes, apiPendientes: result.apiPendientes });
-    } catch (error) { /* Silencio operativo */ }
+      
+      // EXTRACCIÓN DEL ODÓMETRO GEODÉSICO DESDE ASYNCSTORAGE
+      const kmAcumuladosStr = await AsyncStorage.getItem(STORAGE_KEYS.KM_ACUMULADO);
+      setDistanciaKm(kmAcumuladosStr ? parseFloat(kmAcumuladosStr) : 0);
+    } catch (error) {}
   };
 
   const obtenerContextoYRestaurarSesion = async () => {
     try {
-      // 1. Obtener contexto dinámico de asignación
       const { data, error } = await supabase
         .from('asignaciones')
         .select(`id, chofer_id, vehiculo_id, ruta_id, Rutas(id_ruta), vehiculos(vehiculo_id_api)`)
@@ -59,22 +60,19 @@ const PantallaOperacion = () => {
         });
       }
 
-      // 2. Restauración del estado en caso de reinicio de la App
       const recorridoGuardado = await AsyncStorage.getItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
       if (recorridoGuardado) {
         setTrackingActivo(true);
-        // Buscar la fecha de inicio real en la base de datos para el cronómetro
         const { data: recData } = await supabase.from('recorridos').select('fecha_inicio').eq('id', recorridoGuardado).single();
         if (recData) setFechaInicioRecorrido(recData.fecha_inicio);
       }
     } catch (err) {
-      console.warn("Advertencia de Arranque:", err.message);
+      console.warn(err.message);
     } finally {
       setCargandoConfig(false);
     }
   };
 
-  // AUDITORÍA DE CICLO DE VIDA (Garbage Collector 24h)
   useEffect(() => {
     const verificarCaducidad = async () => {
       const estadoAuditoria = await auditarVigenciaRecorrido();
@@ -82,9 +80,6 @@ const PantallaOperacion = () => {
         await detenerTrackingGPS();
         setTrackingActivo(false);
         setFechaInicioRecorrido(null);
-        if (estadoAuditoria.expirado) {
-          Alert.alert("Vigencia Expirada", "El recorrido excedió las 24 horas y fue suspendido automáticamente.");
-        }
       }
     };
     verificarCaducidad();
@@ -97,23 +92,22 @@ const PantallaOperacion = () => {
   useEffect(() => {
     obtenerContextoYRestaurarSesion();
     refrescarMétricasBúfer();
-    const auditorId = setInterval(refrescarMétricasBúfer, 3000); // Polling de UI a 3Hz
+    const auditorId = setInterval(refrescarMétricasBúfer, 2000);
     return () => clearInterval(auditorId);
   }, []);
 
   const handleIniciarRecorrido = async () => {
-    if (!configDinamica) return Alert.alert("Error", "Contexto de asignación inoperante.");
+    if (!configDinamica) return Alert.alert("Error", "Contexto inoperante.");
     setProcesandoHandshake(true);
     try {
       const ahoraISO = new Date().toISOString();
-      setFechaInicioRecorrido(ahoraISO); // Iniciar reloj visual inmediatamente
-
+      setFechaInicioRecorrido(ahoraISO);
       await iniciarNuevoRecorrido(configDinamica);
       await iniciarTrackingGPS();
       setTrackingActivo(true);
     } catch (error) {
-      setFechaInicioRecorrido(null); // Rollback visual
-      Alert.alert('Fallo de Inicialización', error.message);
+      setFechaInicioRecorrido(null);
+      Alert.alert('Fallo', error.message);
     } finally {
       setProcesandoHandshake(false);
     }
@@ -125,10 +119,21 @@ const PantallaOperacion = () => {
       await finalizarRecorridoActivo();
       setTrackingActivo(false);
       setFechaInicioRecorrido(null);
-      Alert.alert('Transmisión Cerrada', 'El recorrido ha sido finalizado con éxito.');
+      setDistanciaKm(0);
+      Alert.alert('Éxito', 'Recorrido cerrado.');
     } catch (error) {
-      Alert.alert('Error Estructural', error.message);
+      Alert.alert('Error', error.message);
     }
+  };
+
+  // INTERCEPCIÓN MANUAL DE EVENTOS (Para agilizar pruebas de QA de tu equipo)
+  const handleForzarHitoManual = () => {
+    const hitoFicticio = Math.ceil(distanciaKm) || 1;
+    console.log(`[QA-Test] Inyectando evento forzado para Hito Kilómetro: ${hitoFicticio}`);
+    DeviceEventEmitter.emit(EVENTOS.HITO_ALCANZADO, {
+      numero_hito: `M-${hitoFicticio}`,
+      km_acumulado: distanciaKm
+    });
   };
 
   if (cargandoConfig) {
@@ -137,98 +142,101 @@ const PantallaOperacion = () => {
 
   return (
     <View style={styles.container}>
-      <ModalHito />
-      {/* Header Operativo */}
       <View style={styles.header}>
         <Text style={styles.title}>CÁPSULA DE MANDO</Text>
         <View style={[styles.statusBadge, trackingActivo ? styles.badgeActive : styles.badgeInactive]}>
           <Text style={styles.statusText}>
-            {trackingActivo ? '🟢 TRANSMISIÓN EN CURSO' : '🔴 TELEMETRÍA DETENIDA'}
+            {trackingActivo ? ' Transmisión Activa' : '🔴 Telemetría Apagada'}
           </Text>
         </View>
       </View>
 
-      {/* Reloj y Cronómetro Memorizado */}
+      {/* Reloj de tiempo de viaje */}
       <View style={styles.chronoContainer}>
-        <Text style={styles.chronoLabel}>TIEMPO TRANSCURRIDO</Text>
+        <Text style={styles.chronoLabel}>TIEMPO ELAPSADO</Text>
         <Cronometro fechaInicio={fechaInicioRecorrido} />
+        
+        {/* NUEVO: PANEL DE ODÓMETRO DIGITAL DUAL */}
+        <View style={styles.odometerRow}>
+          <Text style={styles.odometerValue}>{distanciaKm.toFixed(3)} KM</Text>
+          <Text style={styles.odometerDivider}>|</Text>
+          <Text style={styles.odometerValue}>{(distanciaKm * 1000).toFixed(0)} METROS</Text>
+        </View>
       </View>
 
-      {/* Panel de Sensores (Métricas SQLite) */}
-      <Text style={styles.metricsTitle}>MONITOREO DE RED Y BÚFER (SQLite)</Text>
+      <Text style={styles.metricsTitle}>MONITOREO DEL BÚFER SQLITE</Text>
       <View style={styles.metricsContainer}>
         <View style={styles.metricCard}>
           <Text style={styles.metricValue}>{metricas.total}</Text>
-          <Text style={styles.metricLabel}>POSICIONES{"\n"}TOTALES</Text>
+          <Text style={styles.metricLabel}>TOTALES</Text>
         </View>
         <View style={styles.metricCard}>
           <Text style={[styles.metricValue, metricas.supPendientes > 0 ? styles.textWarning : styles.textSafe]}>
             {metricas.supPendientes}
           </Text>
-          <Text style={styles.metricLabel}>COLA{"\n"}SUPABASE</Text>
+          <Text style={styles.metricLabel}>SUPABASE</Text>
         </View>
         <View style={styles.metricCard}>
           <Text style={[styles.metricValue, metricas.apiPendientes > 0 ? styles.textWarning : styles.textSafe]}>
             {metricas.apiPendientes}
           </Text>
-          <Text style={styles.metricLabel}>COLA{"\n"}API EXT.</Text>
+          <Text style={styles.metricLabel}>API EXT.</Text>
         </View>
       </View>
 
-      {/* Panel de Ignición */}
+      {/* Acciones de Control */}
       <View style={styles.controlsContainer}>
+        {trackingActivo && (
+          <TouchableOpacity style={styles.buttonManual} onPress={handleForzarHitoManual}>
+            <Text style={styles.buttonTextManual}>📸 CAPTURAR EVIDENCIA MANUAL (TEST)</Text>
+          </TouchableOpacity>
+        )}
+
         {!trackingActivo ? (
-          <TouchableOpacity 
-            style={[styles.buttonPrimary, procesandoHandshake && styles.buttonDisabled]} 
-            onPress={handleIniciarRecorrido}
-            disabled={procesandoHandshake}
-          >
-            {procesandoHandshake ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.buttonText}>▶ INICIAR RECORRIDO</Text>
-            )}
+          <TouchableOpacity style={[styles.buttonPrimary, procesandoHandshake && styles.buttonDisabled]} onPress={handleIniciarRecorrido} disabled={procesandoHandshake}>
+            {procesandoHandshake ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>▶ INICIAR RECORRIDO</Text>}
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity 
-            style={styles.buttonDanger} 
-            onPress={handleFinalizarRecorrido}
-          >
+          <TouchableOpacity style={styles.buttonDanger} onPress={handleFinalizarRecorrido}>
             <Text style={styles.buttonText}>■ FINALIZAR RECORRIDO</Text>
           </TouchableOpacity>
         )}
       </View>
+
+      {/* El portal reactivo oculto del Hito */}
+      <ModalHito />
     </View>
   );
 };
 
-// --- ESTRUCTURA VISUAL DE ALTO RENDIMIENTO ---
 const styles = StyleSheet.create({
   containerCenter: { flex: 1, backgroundColor: '#0C0F12', justifyContent: 'center', alignItems: 'center' },
   container: { flex: 1, backgroundColor: '#0C0F12', padding: 20 },
-  header: { alignItems: 'center', marginTop: 40, marginBottom: 30 },
-  title: { fontSize: 24, fontWeight: '900', color: '#FFFFFF', letterSpacing: 1.5, fontFamily: Platform.OS === 'ios' ? 'Helvetica' : 'Roboto' },
+  header: { alignItems: 'center', marginTop: 40, marginBottom: 20 },
+  title: { fontSize: 22, fontWeight: '900', color: '#FFFFFF', letterSpacing: 1.5 },
   statusBadge: { marginTop: 10, paddingHorizontal: 15, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
   badgeActive: { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: '#10B981' },
   badgeInactive: { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: '#EF4444' },
-  statusText: { fontSize: 12, fontWeight: 'bold', color: '#FFFFFF', letterSpacing: 1 },
-  
-  chronoContainer: { backgroundColor: '#171C22', borderRadius: 12, padding: 20, alignItems: 'center', borderWidth: 1, borderColor: '#242C35', marginBottom: 30 },
-  chronoLabel: { color: '#8892B0', fontSize: 12, fontWeight: 'bold', letterSpacing: 2 },
-  
-  metricsTitle: { color: '#8892B0', fontSize: 12, fontWeight: 'bold', letterSpacing: 1, marginBottom: 15, alignSelf: 'center' },
-  metricsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 40 },
-  metricCard: { flex: 1, backgroundColor: '#171C22', borderRadius: 8, paddingVertical: 20, marginHorizontal: 5, alignItems: 'center', borderWidth: 1, borderColor: '#242C35' },
-  metricValue: { fontSize: 26, fontWeight: '900', marginBottom: 5 },
+  statusText: { fontSize: 11, fontWeight: 'bold', color: '#FFFFFF', letterSpacing: 0.5 },
+  chronoContainer: { backgroundColor: '#171C22', borderRadius: 12, padding: 20, alignItems: 'center', borderWidth: 1, borderColor: '#242C35', marginBottom: 20 },
+  chronoLabel: { color: '#8892B0', fontSize: 11, fontWeight: 'bold', letterSpacing: 2 },
+  odometerRow: { flexDirection: 'row', marginTop: 10, borderTopWidth: 1, borderTopColor: '#242C35', paddingTop: 10, width: '100%', justifyContent: 'center', gap: 15 },
+  odometerValue: { color: '#38BDF8', fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  odometerDivider: { color: '#242C35' },
+  metricsTitle: { color: '#8892B0', fontSize: 11, fontWeight: 'bold', letterSpacing: 1, marginBottom: 10, alignSelf: 'center' },
+  metricsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  metricCard: { flex: 1, backgroundColor: '#171C22', borderRadius: 8, paddingVertical: 15, marginHorizontal: 4, alignItems: 'center', borderWidth: 1, borderColor: '#242C35' },
+  metricValue: { fontSize: 24, fontWeight: '900', marginBottom: 3 },
   textSafe: { color: '#10B981' },
   textWarning: { color: '#F59E0B' },
-  metricLabel: { fontSize: 10, color: '#8892B0', textAlign: 'center', fontWeight: 'bold', letterSpacing: 1 },
-  
-  controlsContainer: { flex: 1, justifyContent: 'flex-end', paddingBottom: 20 },
-  buttonPrimary: { backgroundColor: '#0EA5E9', paddingVertical: 18, borderRadius: 10, alignItems: 'center', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
-  buttonDanger: { backgroundColor: '#EF4444', paddingVertical: 18, borderRadius: 10, alignItems: 'center', shadowColor: '#EF4444', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5 },
+  metricLabel: { fontSize: 9, color: '#8892B0', fontWeight: 'bold' },
+  controlsContainer: { flex: 1, justifyContent: 'flex-end', paddingBottom: 10 },
+  buttonPrimary: { backgroundColor: '#0EA5E9', paddingVertical: 16, borderRadius: 10, alignItems: 'center' },
+  buttonDanger: { backgroundColor: '#EF4444', paddingVertical: 16, borderRadius: 10, alignItems: 'center' },
+  buttonManual: { backgroundColor: '#171C22', borderColor: '#38BDF8', borderWidth: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center', marginBottom: 15 },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 16, letterSpacing: 1 },
+  buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15, letterSpacing: 1 },
+  buttonTextManual: { color: '#38BDF8', fontWeight: 'bold', fontSize: 12, letterSpacing: 0.5 },
 });
 
 export default PantallaOperacion;
