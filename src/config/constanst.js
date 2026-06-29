@@ -36,4 +36,11 @@ export const TASK_GPS = "BACKGROUND_LOCATION_TASK";
 export const STORAGE_KEYS = {
   RECORRIDO_ACTIVO_ID: "recorrido_activo_id",
   CHOFER_ACTIVO_ID: "chofer_activo_id",
+  KM_ACUMULADO: "@km_acumulado",
+  ULTIMA_UBICACION: "@ultima_ubicacion",
+  ULTIMO_HITO_KM: "@ultimo_hito_km",
+};
+
+export const EVENTOS = {
+  HITO_ALCANZADO: "HITO_ALCANZADO",
 };

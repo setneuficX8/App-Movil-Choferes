@@ -8,6 +8,7 @@ import { useNetworkSync } from '../hooks/useNetworkSync';
 import { supabase, STORAGE_KEYS, PERFIL_ID } from '../config/constanst'; 
 import { usePreventRemove } from '@react-navigation/native';
 import Cronometro from './Cronometro';
+import { ModalHito } from './ModalHito';
 
 const PantallaOperacion = () => {
   const [trackingActivo, setTrackingActivo] = useState(false);
@@ -135,6 +136,7 @@ const PantallaOperacion = () => {
 
   return (
     <View style={styles.container}>
+      <ModalHito />
       {/* Header Operativo */}
       <View style={styles.header}>
         <Text style={styles.title}>CÁPSULA DE MANDO</Text>
