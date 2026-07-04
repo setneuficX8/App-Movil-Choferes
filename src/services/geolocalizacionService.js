@@ -1,9 +1,42 @@
 import * as Location from "expo-location";
 import { TASK_GPS } from "../config/constanst";
 
+/**
+ * Realiza una auditoría estricta sobre el estado físico del sensor GPS.
+ * @returns {Promise<boolean>} True si el hardware está encendido y autorizado.
+ */
+export const verificarHardwareGPS = async () => {
+  try {
+    const gpsActivado = await Location.hasServicesEnabledAsync();
+    if (!gpsActivado) return false;
+
+    let { status: foreStatus } = await Location.getForegroundPermissionsAsync();
+    if (foreStatus !== "granted") {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      foreStatus = status;
+    }
+    if (foreStatus !== "granted") return false;
+
+    let { status: backStatus } = await Location.getBackgroundPermissionsAsync();
+    if (backStatus !== "granted") {
+      const { status } = await Location.requestBackgroundPermissionsAsync();
+      backStatus = status;
+    }
+    return backStatus === "granted";
+  } catch (error) {
+    console.error(
+      "[GPS-Hardware-Check] Error durante la auditoría:",
+      error.message,
+    );
+    return false;
+  }
+};
+
+/**
+ * Inicializa el tracking de geolocalización nativo en segundo plano.
+ */
 export const iniciarTrackingGPS = async () => {
   try {
-    // CORRECCIÓN CRÍTICA: Validar si el sensor de ubicación está activo, NO si la tarea está definida.
     const hasStarted = await Location.hasStartedLocationUpdatesAsync(TASK_GPS);
     if (hasStarted) {
       console.log("[GPS-Service] El tracking ya estaba en ejecución.");
@@ -13,17 +46,17 @@ export const iniciarTrackingGPS = async () => {
     const { status: fgStatus } =
       await Location.requestForegroundPermissionsAsync();
     if (fgStatus !== "granted")
-      throw new Error("Permisos foreground denegados.");
+      throw new Error("Permisos de primer plano denegados.");
 
     const { status: bgStatus } =
       await Location.requestBackgroundPermissionsAsync();
     if (bgStatus !== "granted")
-      throw new Error("Permisos background denegados.");
+      throw new Error("Permisos de segundo plano denegados.");
 
     await Location.startLocationUpdatesAsync(TASK_GPS, {
-      accuracy: Location.Accuracy.BestForNavigation, //  Se requiere la máxima precisión para el seguimiento de recorridos.
-      distanceInterval: 10, // NOTA: Tienes que moverte físicamente 15 metros para que esto dispare
-      deferredUpdatesInterval: 5000, //  Si el dispositivo no se mueve, esto asegura que al menos cada 5 segundos se intente obtener una ubicación (útil para detectar paradas)
+      accuracy: Location.Accuracy.BestForNavigation,
+      distanceInterval: 10, // Notificación de movimiento cada 10 metros
+      deferredUpdatesInterval: 5000, // Forzar muestreo periódico cada 5 segundos
       showsBackgroundLocationIndicator: true,
       pausesUpdatesAutomatically: false,
       foregroundService: {
@@ -34,15 +67,28 @@ export const iniciarTrackingGPS = async () => {
     });
     console.log("[GPS-Service] Sensor nativo de ubicación inicializado.");
   } catch (err) {
-    console.error("[GPS-Service] Error al inicializar:", err.message);
+    console.error(
+      "[GPS-Service] Fallo al inicializar servicio nativo:",
+      err.message,
+    );
     throw err;
   }
 };
 
+/**
+ * Detiene el tracking de geolocalización liberando recursos de hardware.
+ */
 export const detenerTrackingGPS = async () => {
-  const hasStarted = await Location.hasStartedLocationUpdatesAsync(TASK_GPS);
-  if (hasStarted) {
-    await Location.stopLocationUpdatesAsync(TASK_GPS);
-    console.log("[GPS-Service] Hilo nativo liberado.");
+  try {
+    const hasStarted = await Location.hasStartedLocationUpdatesAsync(TASK_GPS);
+    if (hasStarted) {
+      await Location.stopLocationUpdatesAsync(TASK_GPS);
+      console.log("[GPS-Service] Hilo nativo liberado de forma correcta.");
+    }
+  } catch (err) {
+    console.error(
+      "[GPS-Service] Error al detener el tracking nativo:",
+      err.message,
+    );
   }
 };

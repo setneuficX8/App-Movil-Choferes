@@ -2,8 +2,75 @@ import { supabase, PERFIL_ID, STORAGE_KEYS } from "../config/constanst";
 import apiClient from "../api/client";
 import * as Crypto from "expo-crypto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Network from "expo-network";
 
-// SEPARACIÓN ESTRICTA DE IDs: vehiculoIdSupabase vs vehiculoIdApi
+/**
+ * Verifica la disponibilidad del adaptador de red local de forma segura.
+ */
+export const verificarConexionRed = async () => {
+  try {
+    const estado = await Network.getNetworkStateAsync();
+    return estado.isConnected === true;
+  } catch (e) {
+    console.error(
+      "[Network-Service] Error al auditar estado de red:",
+      e.message,
+    );
+    return false;
+  }
+};
+
+/**
+ * Rollback Atómico: Elimina de forma física las inserciones en cascada si falla el hardware.
+ */
+export const abortarRecorridoFallido = async (localId, apiId) => {
+  console.warn(`[Rollback] Iniciando purga de recorrido huérfano: ${localId}`);
+  try {
+    // 1. Purga local del contexto operativo
+    await AsyncStorage.removeItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
+    await AsyncStorage.removeItem("recorrido_activo_id_api");
+    await AsyncStorage.removeItem(STORAGE_KEYS.KM_ACUMULADO);
+    await AsyncStorage.removeItem(STORAGE_KEYS.ULTIMA_UBICACION);
+    await AsyncStorage.removeItem(STORAGE_KEYS.ULTIMO_HITO_KM);
+
+    // 2. Eliminación física en Supabase para evitar colisiones lógicas
+    if (localId) {
+      const { error } = await supabase
+        .from("recorridos")
+        .delete()
+        .eq("id", localId);
+      if (error)
+        console.error(
+          "[Rollback] Error al eliminar en Supabase:",
+          error.message,
+        );
+    }
+
+    // 3. Notificación de cancelación / finalización forzada a la API Externa
+    if (apiId) {
+      try {
+        await apiClient.post(`/recorridos/${apiId}/finalizar`, {
+          perfil_id: PERFIL_ID,
+          abortado: true, // Parámetro adicional opcional para auditorías del backend
+        });
+      } catch (apiErr) {
+        console.warn(
+          "[Rollback] API externa ya se encontraba limpia o inaccesible:",
+          apiErr.message,
+        );
+      }
+    }
+  } catch (err) {
+    console.error(
+      "[Rollback-Fatal] Error crítico durante la ejecución del rollback:",
+      err.message,
+    );
+  }
+};
+
+/**
+ * Inicia el handshake online obligatorio de un nuevo recorrido.
+ */
 export const iniciarNuevoRecorrido = async ({
   choferId,
   asignacionId,
@@ -12,7 +79,7 @@ export const iniciarNuevoRecorrido = async ({
   rutaIdBigInt,
   rutaIdUuid,
 }) => {
-  // Limpieza preventiva de contexto previo
+  // Limpieza preventiva de variables de estado local
   await AsyncStorage.removeItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
   await AsyncStorage.removeItem("recorrido_activo_id_api");
   await AsyncStorage.removeItem(STORAGE_KEYS.KM_ACUMULADO);
@@ -21,44 +88,46 @@ export const iniciarNuevoRecorrido = async ({
 
   const recorridoLocalId = Crypto.randomUUID();
 
-  // 1. Persistencia inicial en Supabase (Usando la clave interna UUID)
+  // 1. Registro transaccional en Supabase
   try {
     const { error: dbError } = await supabase.from("recorridos").insert({
       id: recorridoLocalId,
       chofer_id: choferId,
-      vehiculo_id: vehiculoIdInterno, // Clave foránea interna obligatoria
+      vehiculo_id: vehiculoIdInterno,
       ruta_id: rutaIdBigInt,
       asignacion_id: asignacionId,
       estado: "en_curso",
     });
 
-    if (dbError) throw new Error(`Rechazo de Supabase: ${dbError.message}`);
+    if (dbError) throw new Error(`Supabase insert reject: ${dbError.message}`);
   } catch (err) {
     if (err.message === "Network request failed" || err.name === "TypeError") {
       throw new Error(
-        "Conexión física rechazada. Debes tener internet para INICIAR un recorrido.",
+        "Conexión de red inestable. Se requiere internet para iniciar un recorrido.",
       );
     }
     throw err;
   }
 
-  // 2. Negociación con API Externa (Usando la clave externa text)
+  // 2. Handshake con API Externa
   try {
     const { data: apiResponse } = await apiClient.post("/recorridos/iniciar", {
       ruta_id: rutaIdUuid,
-      vehiculo_id: vehiculoIdExterno, // CORRECCIÓN: Se envía el identificador externo real
+      vehiculo_id: vehiculoIdExterno,
       perfil_id: PERFIL_ID,
     });
 
     const recorridoIdApi = apiResponse.id;
 
-    // 3. Consolidación de Identidades en Supabase
-    await supabase
+    // 3. Vinculación de identidades en Supabase
+    const { error: updateError } = await supabase
       .from("recorridos")
       .update({ recorrido_id_api: recorridoIdApi })
       .eq("id", recorridoLocalId);
 
-    // 4. Inyección en el contexto de persistencia local
+    if (updateError) throw updateError;
+
+    // 4. Almacenamiento seguro del contexto de persistencia local
     await AsyncStorage.setItem(
       STORAGE_KEYS.RECORRIDO_ACTIVO_ID,
       recorridoLocalId,
@@ -67,23 +136,27 @@ export const iniciarNuevoRecorrido = async ({
 
     return { localId: recorridoLocalId, apiId: recorridoIdApi };
   } catch (apiError) {
+    // Si la API externa falla, ejecutamos un borrado físico para evitar colisiones
     try {
-      await supabase
-        .from("recorridos")
-        .update({ estado: "suspendido" })
-        .eq("id", recorridoLocalId);
+      await supabase.from("recorridos").delete().eq("id", recorridoLocalId);
     } catch (rollbackErr) {
-      console.warn("Rollback fallido por inestabilidad de red.");
+      console.warn(
+        "[Rollback-Handshake] No se pudo limpiar la base de datos centralizada:",
+        rollbackErr.message,
+      );
     }
 
     const mensajeError = apiError.response
-      ? `La API rechazó los datos (Código ${apiError.response.status}). Mensaje: ${JSON.stringify(apiError.response.data)}`
-      : `Fallo de red al contactar API externa: ${apiError.message}`;
+      ? `API externa rechazó el handshake (Código ${apiError.response.status}).`
+      : `Error de red al establecer contacto con la API externa: ${apiError.message}`;
 
     throw new Error(mensajeError);
   }
 };
 
+/**
+ * Finaliza el recorrido activo formalizando los estados remotos.
+ */
 export const finalizarRecorridoActivo = async () => {
   const recorridoLocalId = await AsyncStorage.getItem(
     STORAGE_KEYS.RECORRIDO_ACTIVO_ID,
@@ -92,11 +165,11 @@ export const finalizarRecorridoActivo = async () => {
 
   if (!recorridoLocalId) {
     throw new Error(
-      "Violación de estado: No hay recorrido activo en la memoria para finalizar.",
+      "Violación de estado: No hay ningún recorrido activo para finalizar.",
     );
   }
 
-  // 1. Notificación HTTP al microservicio externo
+  // 1. Cierre en API Externa
   if (recorridoApiId) {
     try {
       await apiClient.post(`/recorridos/${recorridoApiId}/finalizar`, {
@@ -104,12 +177,13 @@ export const finalizarRecorridoActivo = async () => {
       });
     } catch (apiError) {
       console.warn(
-        "La API externa rechazó la finalización. Procediendo con el cierre local en Supabase.",
+        "[Finalización] No se pudo notificar la API externa, procediendo con Supabase:",
+        apiError.message,
       );
     }
   }
 
-  // 2. Mutación de estado transaccional en Supabase
+  // 2. Actualización de estado en Supabase
   const { error: dbError } = await supabase
     .from("recorridos")
     .update({
@@ -118,20 +192,24 @@ export const finalizarRecorridoActivo = async () => {
     })
     .eq("id", recorridoLocalId);
 
-  if (dbError)
-    throw new Error(`Fallo relacional al cerrar recorrido: ${dbError.message}`);
+  if (dbError) {
+    throw new Error(
+      `Fallo transaccional al cerrar el recorrido en Supabase: ${dbError.message}`,
+    );
+  }
 
-  // 3. Destrucción del contexto local
+  // 3. Purga del almacenamiento local
   await AsyncStorage.removeItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
   await AsyncStorage.removeItem("recorrido_activo_id_api");
 };
 
+/**
+ * Realiza la auditoría de vigencia temporal de 24 horas sobre el recorrido activo.
+ */
 export const auditarVigenciaRecorrido = async () => {
   const recorridoLocalId = await AsyncStorage.getItem(
     STORAGE_KEYS.RECORRIDO_ACTIVO_ID,
   );
-
-  // Caso 1: No hay recorrido en curso. Todo está en orden.
   if (!recorridoLocalId) return { expirado: false, zombie: false };
 
   try {
@@ -141,32 +219,31 @@ export const auditarVigenciaRecorrido = async () => {
       .eq("id", recorridoLocalId)
       .single();
 
-    // Caso 2: Caída de red. No podemos auditar. Confiamos en el hardware temporalmente.
     if (error) {
       console.warn(
-        "[Auditoría] Falla de red al verificar Supabase:",
+        "[Auditoría] Inestabilidad de red durante verificación:",
         error.message,
       );
       return { expirado: false, zombie: false };
     }
 
-    // Caso 3: El ID existe en el teléfono pero fue borrado de Supabase (Estado Zombi)
     if (!data) {
       console.warn(
-        "[Auditoría] ID Zombi detectado. Purgando almacenamiento local.",
+        "[Auditoría] Recorrido zombi detectado en SQLite. Purgando almacenamiento local.",
       );
       await AsyncStorage.removeItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
       await AsyncStorage.removeItem("recorrido_activo_id_api");
       return { expirado: false, zombie: true };
     }
 
-    // Caso 4: Evaluación Temporal Matemática
     const tiempoInicio = new Date(data.fecha_inicio).getTime();
     const tiempoActual = new Date().getTime();
     const horasTranscurridas = (tiempoActual - tiempoInicio) / (1000 * 60 * 60);
 
     if (horasTranscurridas >= 24) {
-      console.warn("[Auditoría] Límite de 24h excedido. Suspensión forzosa.");
+      console.warn(
+        "[Auditoría] Recorrido con antigüedad >= 24 horas. Suspensión forzosa en curso.",
+      );
       await supabase
         .from("recorridos")
         .update({ estado: "suspendido", fecha_fin: new Date().toISOString() })
@@ -177,7 +254,6 @@ export const auditarVigenciaRecorrido = async () => {
       return { expirado: true, zombie: false };
     }
 
-    // Caso 5: Recorrido válido y dentro del tiempo.
     return { expirado: false, zombie: false };
   } catch (err) {
     return { expirado: false, zombie: false };
