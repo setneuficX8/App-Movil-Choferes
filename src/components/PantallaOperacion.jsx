@@ -1,8 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, AppState, DeviceEventEmitter } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  StyleSheet, 
+  ActivityIndicator, 
+  AppState, 
+  DeviceEventEmitter, 
+  Modal 
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePreventRemove } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 
 import { 
   iniciarNuevoRecorrido, 
@@ -11,7 +21,11 @@ import {
   verificarConexionRed, 
   abortarRecorridoFallido 
 } from '../services/recorridoService';
-import { iniciarTrackingGPS, detenerTrackingGPS, verificarHardwareGPS } from '../services/geolocalizacionService';
+import { 
+  iniciarTrackingGPS, 
+  detenerTrackingGPS, 
+  comprobarPermisosExistentesGPS 
+} from '../services/geolocalizacionService';
 import { obtenerMetricasLocales } from '../database/posicionesQueries';
 import { useNetworkSync } from '../hooks/useNetworkSync';
 import { supabase, STORAGE_KEYS, EVENTOS } from '../config/constanst'; 
@@ -19,7 +33,11 @@ import { supabase, STORAGE_KEYS, EVENTOS } from '../config/constanst';
 import Cronometro from './Cronometro';
 import { ModalHito } from './ModalHito';
 
-const PantallaOperacion = () => {
+/**
+ * Pantalla de Operación de Telemetría para Choferes.
+ * Aplica validaciones JIT (Just-In-Time) secuenciales en el momento de la ignición.
+ */
+const PantallaOperacion = ({ navigation }) => {
   const [trackingActivo, setTrackingActivo] = useState(false);
   const [procesandoHandshake, setProcesandoHandshake] = useState(false);
   const [configDinamica, setConfigDinamica] = useState(null);
@@ -28,8 +46,19 @@ const PantallaOperacion = () => {
   const [distanciaKm, setDistanciaKm] = useState(0);
   const [metricas, setMetricas] = useState({ total: 0, supPendientes: 0, apiPendientes: 0 });
 
+  // Indicadores de hardware para telemetría visual de la consola (No bloqueantes de UI)
   const [gpsHabilitado, setGpsHabilitado] = useState(true);
   const [redHabilitada, setRedHabilitada] = useState(true);
+
+  // Estados del Modal de Advertencia Industrial
+  const [advertenciaVisible, setAdvertenciaVisible] = useState(false);
+  const [advertenciaConfig, setAdvertenciaConfig] = useState({ 
+    titulo: 'ALERTA DEL SISTEMA', 
+    mensaje: '', 
+    icono: 'alert-decagram' 
+  });
+
+  const isMounted = useRef(true);
 
   const estadoRuta = trackingActivo ? 'EN CURSO' : 'LISTO PARA INICIAR';
   const subtituloRuta = trackingActivo
@@ -38,28 +67,38 @@ const PantallaOperacion = () => {
 
   useNetworkSync();
 
+  // Control preventivo ante salida involuntaria durante transmisiones de coordenadas activas
   usePreventRemove(trackingActivo, () => {
     Alert.alert('Protocolo Activo', 'No se puede salir de la consola con la telemetría en marcha.');
   });
 
+  /**
+   * Actualiza el estado visual de los sensores de red y localización (Monitoreo pasivo)
+   */
   const auditarDisponibilidadEntorno = async () => {
-    const gpsStatus = await verificarHardwareGPS();
+    const gpsStatus = await comprobarPermisosExistentesGPS();
     const redStatus = await verificarConexionRed();
-    setGpsHabilitado(gpsStatus);
-    setRedHabilitada(redStatus);
+    if (isMounted.current) {
+      setGpsHabilitado(gpsStatus);
+      setRedHabilitada(redStatus);
+    }
   };
 
   const refrescarMetricasBufer = async () => {
     try {
       const result = await obtenerMetricasLocales();
-      setMetricas({ 
-        total: result.total, 
-        supPendientes: result.supPendientes, 
-        apiPendientes: result.apiPendientes 
-      });
+      if (isMounted.current) {
+        setMetricas({ 
+          total: result.total, 
+          supPendientes: result.supPendientes, 
+          apiPendientes: result.apiPendientes 
+        });
+      }
       
       const kmAcumuladosStr = await AsyncStorage.getItem(STORAGE_KEYS.KM_ACUMULADO);
-      setDistanciaKm(kmAcumuladosStr ? parseFloat(kmAcumuladosStr) : 0);
+      if (isMounted.current) {
+        setDistanciaKm(kmAcumuladosStr ? parseFloat(kmAcumuladosStr) : 0);
+      }
     } catch (error) {
       console.error("[Metricas] Error al refrescar métricas locales:", error.message);
     }
@@ -73,7 +112,7 @@ const PantallaOperacion = () => {
         .limit(1)
         .single();
 
-      if (!error && data?.vehiculos?.vehiculo_id_api) {
+      if (!error && data?.vehiculos?.vehiculo_id_api && isMounted.current) {
         setConfigDinamica({
           asignacionId: data.id,
           choferId: data.chofer_id,
@@ -85,7 +124,7 @@ const PantallaOperacion = () => {
       }
 
       const recorridoGuardado = await AsyncStorage.getItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
-      if (recorridoGuardado) {
+      if (recorridoGuardado && isMounted.current) {
         setTrackingActivo(true);
         const kmStr = await AsyncStorage.getItem(STORAGE_KEYS.KM_ACUMULADO);
         setDistanciaKm(kmStr ? parseFloat(kmStr) : 0);
@@ -94,19 +133,127 @@ const PantallaOperacion = () => {
           .select('fecha_inicio')
           .eq('id', recorridoGuardado)
           .single();
-        if (recData) setFechaInicioRecorrido(recData.fecha_inicio);
+        if (recData && isMounted.current) setFechaInicioRecorrido(recData.fecha_inicio);
       }
     } catch (err) {
       console.warn("[Sesión] Error al recuperar contexto operativo:", err.message);
     } finally {
-      setCargandoConfig(false);
+      if (isMounted.current) setCargandoConfig(false);
     }
+  };
+
+  const lanzarAlertaJIT = (icono, titulo, mensaje) => {
+    setAdvertenciaConfig({ icono, titulo, mensaje });
+    setAdvertenciaVisible(true);
+    setProcesandoHandshake(false);
+  };
+
+  /**
+   * Controlador de Inicio de Recorrido con Validación Secuencial Just-In-Time (JIT)
+   */
+  const handleIniciarRecorrido = async () => {
+    setProcesandoHandshake(true);
+    let IDsCreados = null;
+
+    try {
+      // ASERCIÓN 1: Verificación de Red de Datos/WiFi
+      const redValida = await verificarConexionRed();
+      if (!redValida) {
+        lanzarAlertaJIT(
+          'wifi-off', 
+          'SIN CONEXIÓN DE RED', 
+          'Se requiere conexión de red activa (Datos móviles o WiFi) para iniciar la sincronización remota del recorrido. Por favor, verifica tu señal.'
+        );
+        return;
+      }
+
+      // ASERCIÓN 2: Verificación de disponibilidad física del Hardware de Ubicación
+      const gpsEncendido = await Location.hasServicesEnabledAsync();
+      if (!gpsEncendido) {
+        lanzarAlertaJIT(
+          'map-marker-off', 
+          'GPS DESACTIVADO', 
+          'El receptor de ubicación (GPS) está apagado a nivel de sistema. Despliega la barra de notificaciones y actívalo para poder iniciar la transmisión.'
+        );
+        return;
+      }
+
+      // ASERCIÓN 3: Verificación y solicitud imperativa de permisos
+      let { status: foreStatus } = await Location.getForegroundPermissionsAsync();
+      if (foreStatus !== 'granted') {
+        const { status: reqStatus } = await Location.requestForegroundPermissionsAsync();
+        foreStatus = reqStatus;
+      }
+
+      if (foreStatus !== 'granted') {
+        lanzarAlertaJIT(
+          'shield-lock-outline', 
+          'ACCESO RECHAZADO', 
+          'No se han otorgado los permisos necesarios para acceder a las coordenadas de geolocalización. Concede los permisos de ubicación en primer plano para poder continuar.'
+        );
+        return;
+      }
+
+      // ASERCIÓN 4: Ejecución del handshake y distribución de datos remotos
+      const resultado = await iniciarNuevoRecorrido(configDinamica);
+      IDsCreados = { localId: resultado.localId, apiId: resultado.apiId };
+
+      // Inyección y encendido del sensor de fondo nativo
+      await iniciarTrackingGPS();
+      
+      if (isMounted.current) {
+        const ahoraISO = new Date().toISOString();
+        setFechaInicioRecorrido(ahoraISO);
+        setTrackingActivo(true);
+      }
+
+    } catch (error) {
+      if (IDsCreados) {
+        await abortarRecorridoFallido(IDsCreados.localId, IDsCreados.apiId);
+      }
+      if (isMounted.current) {
+        setFechaInicioRecorrido(null);
+        setTrackingActivo(false);
+      }
+      lanzarAlertaJIT(
+        'server-off', 
+        'FALLO DE CONEXIÓN', 
+        `Ocurrió un error crítico durante el inicio de la sesión: ${error.message || 'Verifique la calidad de su cobertura e intente nuevamente.'}`
+      );
+    } finally {
+      if (isMounted.current) {
+        setProcesandoHandshake(false);
+      }
+    }
+  };
+
+  const handleFinalizarRecorrido = async () => {
+    try {
+      await detenerTrackingGPS();
+      await finalizarRecorridoActivo();
+      if (isMounted.current) {
+        setTrackingActivo(false);
+        setFechaInicioRecorrido(null);
+        setDistanciaKm(0);
+      }
+      Alert.alert('Consola de Control', 'Recorrido finalizado y transmitido formalmente.');
+    } catch (error) {
+      Alert.alert('Error Operativo', error.message);
+    }
+  };
+
+  const handleForzarHitoManual = () => {
+    const hitoFicticio = Math.ceil(distanciaKm) || 1;
+    DeviceEventEmitter.emit(EVENTOS.HITO_ALCANZADO, {
+      numero_hito: hitoFicticio, 
+      km_acumulado: distanciaKm
+    });
   };
 
   useEffect(() => {
     const verificarCaducidad = async () => {
       const estadoAuditoria = await auditarVigenciaRecorrido();
-      if (estadoAuditoria.zombie || estadoAuditoria.expirado) {
+      if ((estadoAuditoria.zombie || estadoAuditoria.expirado) && isMounted.current) {
         await detenerTrackingGPS();
         setTrackingActivo(false);
         setFechaInicioRecorrido(null);
@@ -116,6 +263,7 @@ const PantallaOperacion = () => {
   }, [trackingActivo]);
 
   useEffect(() => {
+    isMounted.current = true;
     obtenerContextoYRestaurarSesion();
     refrescarMetricasBufer();
     auditarDisponibilidadEntorno();
@@ -130,90 +278,30 @@ const PantallaOperacion = () => {
     });
 
     return () => {
+      isMounted.current = false;
       clearInterval(auditorId);
       subAppState.remove();
     };
   }, []);
 
-  const handleIniciarRecorrido = async () => {
-    setProcesandoHandshake(true);
-    let IDsCreados = null;
-
-    try {
-      // Comprobación de hardware en la capa 0
-      const gpsValido = await verificarHardwareGPS();
-      const redValida = await verificarConexionRed();
-
-      if (!gpsValido) {
-        Alert.alert("Ignición Abortada", "El chip GPS está inactivo o no tiene permisos de localización.");
-        setProcesandoHandshake(false);
-        return;
-      }
-
-      if (!redValida) {
-        Alert.alert("Ignición Abortada", "El dispositivo carece de conexión a una red móvil o WiFi.");
-        setProcesandoHandshake(false);
-        return;
-      }
-
-      // Handshake síncronizado y centralizado
-      const resultado = await iniciarNuevoRecorrido(configDinamica);
-      IDsCreados = { localId: resultado.localId, apiId: resultado.apiId };
-
-      // Arranque del receptor nativo GPS
-      await iniciarTrackingGPS();
-      
-      const ahoraISO = new Date().toISOString();
-      setFechaInicioRecorrido(ahoraISO);
-      setTrackingActivo(true);
-
-    } catch (error) {
-      // Mecanismo de rollback atómico ante fallos imprevistos en sensores o red
-      if (IDsCreados) {
-        await abortarRecorridoFallido(IDsCreados.localId, IDsCreados.apiId);
-      }
-      setFechaInicioRecorrido(null);
-      setTrackingActivo(false);
-      
-      Alert.alert(
-        'Fallo de Ignición del Sistema', 
-        `No se pudo establecer comunicación con la infraestructura centralizada: ${error.message}`
-      );
-    } finally {
-      setProcesandoHandshake(false);
-    }
-  };
-
-  const handleFinalizarRecorrido = async () => {
-    try {
-      await detenerTrackingGPS();
-      await finalizarRecorridoActivo();
-      setTrackingActivo(false);
-      setFechaInicioRecorrido(null);
-      setDistanciaKm(0);
-      Alert.alert('Éxito', 'Recorrido finalizado formalmente.');
-    } catch (error) {
-      Alert.alert('Error', error.message);
-    }
-  };
-
-const handleForzarHitoManual = () => {
-    const hitoFicticio = Math.ceil(distanciaKm) || 1;
-    DeviceEventEmitter.emit(EVENTOS.HITO_ALCANZADO, {
-      numero_hito: hitoFicticio, // CORRECCIÓN: Se envía un entero puro en lugar de string "M-1"
-      km_acumulado: distanciaKm
-    });
-  };
-
   if (cargandoConfig) {
     return (
       <View style={styles.containerCenter}>
         <ActivityIndicator size="large" color="#10B981" />
+        <Text style={styles.loadingText}>Sincronizando consola operativa...</Text>
+        <TouchableOpacity 
+          style={styles.buttonEscapeLoader} 
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.buttonEscapeText}>CANCELAR Y REGRESAR</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  const isButtonDisabled = procesandoHandshake || !gpsHabilitado || !redHabilitada;
+  // JIT Refactor: El botón principal de inicio no tiene bloqueo pasivo.
+  // Solo se bloquea temporalmente mientras se está resolviendo la aserción o petición.
+  const isButtonDisabled = procesandoHandshake;
 
   return (
     <View style={styles.container}>
@@ -266,6 +354,30 @@ const handleForzarHitoManual = () => {
             <MaterialCommunityIcons name="swap-horizontal" size={16} color="#A5B4FC" />
             <Text style={styles.odometerValue}>{(distanciaKm * 1000).toFixed(0)} M</Text>
           </View>
+        </View>
+      </View>
+
+      {/* Indicadores pasivos de estado de Red y Satélite */}
+      <View style={styles.hardwareIndicators}>
+        <View style={[styles.indicatorPill, redHabilitada ? styles.indicatorPillActive : styles.indicatorPillInactive]}>
+          <MaterialCommunityIcons 
+            name={redHabilitada ? "wifi" : "wifi-off"} 
+            size={14} 
+            color={redHabilitada ? "#10B981" : "#EF4444"} 
+          />
+          <Text style={[styles.indicatorPillText, redHabilitada ? styles.indicatorTextActive : styles.indicatorTextInactive]}>
+            {redHabilitada ? "RED DETECTADA" : "SIN RED"}
+          </Text>
+        </View>
+        <View style={[styles.indicatorPill, gpsHabilitado ? styles.indicatorPillActive : styles.indicatorPillInactive]}>
+          <MaterialCommunityIcons 
+            name={gpsHabilitado ? "satellite-variant" : "satellite-off"} 
+            size={14} 
+            color={gpsHabilitado ? "#10B981" : "#EF4444"} 
+          />
+          <Text style={[styles.indicatorPillText, gpsHabilitado ? styles.indicatorTextActive : styles.indicatorTextInactive]}>
+            {gpsHabilitado ? "SEÑAL GPS LISTA" : "SIN SEÑAL GPS"}
+          </Text>
         </View>
       </View>
 
@@ -340,12 +452,66 @@ const handleForzarHitoManual = () => {
       </View>
 
       <ModalHito />
+
+      {/* Componente Modal de Alerta de Control JIT Estilizado */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={advertenciaVisible}
+        onRequestClose={() => setAdvertenciaVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalIconWrap}>
+              <MaterialCommunityIcons name={advertenciaConfig.icono} size={36} color="#EF4444" />
+            </View>
+            <Text style={styles.modalTitleText}>{advertenciaConfig.titulo}</Text>
+            <Text style={styles.modalMessageText}>{advertenciaConfig.mensaje}</Text>
+            
+            <TouchableOpacity 
+              style={styles.modalConfirmButton} 
+              onPress={() => setAdvertenciaVisible(false)}
+            >
+              <Text style={styles.modalConfirmButtonText}>ENTENDIDO</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  containerCenter: { flex: 1, backgroundColor: '#0A0D11', justifyContent: 'center', alignItems: 'center' },
+  containerCenter: { 
+    flex: 1, 
+    backgroundColor: '#0A0D11', 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    padding: 30
+  },
+  loadingText: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    marginTop: 15,
+    marginBottom: 24,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  buttonEscapeLoader: {
+    backgroundColor: '#11161D',
+    borderColor: '#374151',
+    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  buttonEscapeText: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
   container: { flex: 1, backgroundColor: '#0A0D11', padding: 20 },
   backgroundOrbTop: {
     position: 'absolute',
@@ -398,7 +564,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 1,
     borderColor: '#22303B',
-    marginBottom: 18,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOpacity: 0.35,
     shadowRadius: 16,
@@ -442,6 +608,40 @@ const styles = StyleSheet.create({
   },
   odometerSeparator: { width: 12 },
   odometerValue: { color: '#E5F4FF', fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  
+  // Estilos de los indicadores pasivos de hardware
+  hardwareIndicators: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 16
+  },
+  indicatorPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  indicatorPillActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.06)',
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+  },
+  indicatorPillInactive: {
+    backgroundColor: 'rgba(239, 68, 68, 0.06)',
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+  },
+  indicatorPillText: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  indicatorTextActive: { color: '#10B981' },
+  indicatorTextInactive: { color: '#EF4444' },
+
   metricsBlock: {
     backgroundColor: '#11161D',
     borderRadius: 20,
@@ -496,6 +696,70 @@ const styles = StyleSheet.create({
   buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 14, letterSpacing: 0.9 },
   buttonTextManual: { color: '#38BDF8', fontWeight: '800', fontSize: 12, letterSpacing: 0.5 },
   buttonContentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+
+  // Estilos del Modal de Advertencia con estética industrial oscura
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(5, 7, 10, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContainer: {
+    width: '100%',
+    backgroundColor: '#11161D',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#22303B',
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
+  },
+  modalIconWrap: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitleText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalMessageText: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  modalConfirmButton: {
+    backgroundColor: '#0EA5E9',
+    width: '100%',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#0EA5E9',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  modalConfirmButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
 });
 
 export default PantallaOperacion;
