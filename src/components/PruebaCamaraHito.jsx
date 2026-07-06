@@ -2,10 +2,13 @@ import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { procesarImagenOptimizada } from '../services/camaraService';
+import { useTheme } from '../context/ThemeContext';
 
 // ESTE ES UN COMPONENTE DE EJEMPLO PARA CONECTAR EL PIPELINE
 // Tu equipo deberá integrar esta lógica en el flujo del Modal de la Tarea 4.
 export const PruebaCamaraHito = ({ onFotoCapturada, onCancelar }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const [permiso, solicitarPermiso] = useCameraPermissions();
   const [procesando, setProcesando] = useState(false);
   const cameraRef = useRef(null);
@@ -74,8 +77,8 @@ export const PruebaCamaraHito = ({ onFotoCapturada, onCancelar }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0C0F12' },
+const getStyles = (theme) => StyleSheet.create({
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background },
   container: { flex: 1, backgroundColor: '#000' },
   camera: { flex: 1, justifyContent: 'flex-end' },
   controls: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', padding: 30, backgroundColor: 'rgba(0,0,0,0.6)' },
@@ -83,5 +86,5 @@ const styles = StyleSheet.create({
   textoCaptura: { fontSize: 30, color: '#0EA5E9' },
   botonSecundario: { padding: 15, backgroundColor: '#374151', borderRadius: 8 },
   textoBoton: { color: '#FFFFFF', fontWeight: 'bold' },
-  texto: { color: '#fff', marginBottom: 15 }
+  texto: { color: theme.colors.text, marginBottom: 15 }
 });

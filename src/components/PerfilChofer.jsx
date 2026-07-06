@@ -1,12 +1,15 @@
 import { useNavigation } from '@react-navigation/native';
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Alert, Switch } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from '../context/ThemeContext';
 
 import { supabase } from '../config/constanst';
 
 
 const PerfilChofer = () => {
+  const { theme, isDarkMode, toggleTheme } = useTheme();
+  const styles = getStyles(theme);
   const navigation = useNavigation();
   const [chofer, setChofer] = useState(null);
   const [asignacionActiva, setAsignacionActiva] = useState(null);
@@ -153,7 +156,7 @@ const PerfilChofer = () => {
           <MaterialCommunityIcons
             name={chofer?.activo ? 'account-check-outline' : 'account-off-outline'}
             size={14}
-            color="#FFFFFF"
+            color={theme.colors.text}
             style={styles.statusIcon}
           />
           <View>
@@ -250,6 +253,19 @@ const PerfilChofer = () => {
         </TouchableOpacity>
       )}
 
+      <View style={styles.themeToggleContainer}>
+        <View style={styles.themeToggleRow}>
+          <MaterialCommunityIcons name={isDarkMode ? "weather-night" : "weather-sunny"} size={22} color={theme.colors.text} />
+          <Text style={styles.themeToggleText}>{isDarkMode ? 'Modo claro' : 'Modo oscuro'}</Text>
+        </View>
+        <Switch 
+          value={isDarkMode} 
+          onValueChange={toggleTheme} 
+          trackColor={{ false: '#767577', true: theme.colors.primary }}
+          thumbColor={isDarkMode ? '#fff' : '#f4f3f4'}
+        />
+      </View>
+
       <TouchableOpacity 
         style={styles.refreshButton} 
         onPress={cargarPerfil}
@@ -276,12 +292,12 @@ const PerfilChofer = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  centerContainer: { flex: 1, backgroundColor: '#0A0D11', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  loadingText: { color: '#FFFFFF', marginTop: 15, fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
+const getStyles = (theme) => StyleSheet.create({
+  centerContainer: { flex: 1, backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  loadingText: { color: theme.colors.text, marginTop: 15, fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
   errorBox: {
-    backgroundColor: '#11161D',
-    borderColor: '#EF4444',
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.danger,
     borderWidth: 1,
     borderRadius: 18,
     padding: 20,
@@ -289,9 +305,9 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: 8,
   },
-  errorTitle: { color: '#F87171', fontSize: 18, fontWeight: '900', marginBottom: 4, textAlign: 'center' },
-  errorText: { color: '#D1D5DB', textAlign: 'center', marginBottom: 12 },
-  container: { flexGrow: 1, backgroundColor: '#0A0D11', padding: 20 },
+  errorTitle: { color: theme.colors.danger, fontSize: 18, fontWeight: '900', marginBottom: 4, textAlign: 'center' },
+  errorText: { color: theme.colors.textSecondary, textAlign: 'center', marginBottom: 12 },
+  container: { flexGrow: 1, backgroundColor: theme.colors.background, padding: 20 },
   backgroundOrbTop: {
     position: 'absolute',
     top: -60,
@@ -312,9 +328,9 @@ const styles = StyleSheet.create({
   },
   header: { marginTop: 40, marginBottom: 16 },
   headerCopy: { marginBottom: 14 },
-  kicker: { color: '#38BDF8', fontSize: 11, fontWeight: '800', letterSpacing: 2, marginBottom: 6 },
-  title: { fontSize: 26, fontWeight: '900', color: '#FFFFFF', letterSpacing: 1.1 },
-  subtitle: { color: '#9CA3AF', marginTop: 8, lineHeight: 18, fontSize: 12 },
+  kicker: { color: theme.colors.primary, fontSize: 11, fontWeight: '800', letterSpacing: 2, marginBottom: 6 },
+  title: { fontSize: 26, fontWeight: '900', color: theme.colors.text, letterSpacing: 1.1 },
+  subtitle: { color: theme.colors.textSecondary, marginTop: 8, lineHeight: 18, fontSize: 12 },
   statusBadge: {
     marginTop: 4,
     paddingHorizontal: 14,
@@ -323,29 +339,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
   },
   statusIcon: { marginRight: 10 },
-  statusLabel: { fontSize: 9, color: '#C7D2FE', fontWeight: '800', letterSpacing: 1.1, marginBottom: 1 },
-  statusText: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.6 },
+  statusLabel: { fontSize: 9, color: theme.colors.textSecondary, fontWeight: '800', letterSpacing: 1.1, marginBottom: 1 },
+  statusText: { fontSize: 13, fontWeight: '900', color: theme.colors.text, letterSpacing: 0.6 },
   statusDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
   statusDotActive: { backgroundColor: '#10B981' },
-  statusDotInactive: { backgroundColor: '#EF4444' },
+  statusDotInactive: { backgroundColor: theme.colors.danger },
   badgeActive: { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.4)' },
   badgeInactive: { backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.4)' },
   heroCard: {
-    backgroundColor: '#11161D',
+    backgroundColor: theme.colors.card,
     borderRadius: 20,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#22303B',
+    borderColor: theme.colors.border,
     marginBottom: 18,
     shadowColor: '#000',
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.1,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 4,
@@ -371,46 +382,60 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
-  heroTagText: { color: '#7DD3FC', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
-  heroTagTextSecondary: { color: '#C4B5FD', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+  heroTagText: { color: '#0284C7', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+  heroTagTextSecondary: { color: '#6366F1', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
   heroMetricCardSingle: {
-    backgroundColor: '#0F141A',
+    backgroundColor: theme.colors.inputBackground,
     borderRadius: 16,
     paddingVertical: 14,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#22303B',
+    borderColor: theme.colors.border,
     gap: 10,
+    marginTop: 14,
   },
   heroMetricHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   heroMetricStack: { gap: 12 },
-  heroMetricCaption: { color: '#8B96A8', fontSize: 9, fontWeight: '800', letterSpacing: 0.8, marginBottom: 4 },
-  heroMetricDivider: { height: 1, backgroundColor: '#22303B' },
-  heroMetricValue: { color: '#E5F4FF', fontSize: 14, fontWeight: '900' },
-  heroMetricLabel: { color: '#7DD3FC', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+  heroMetricCaption: { color: theme.colors.textSecondary, fontSize: 9, fontWeight: '800', letterSpacing: 0.8, marginBottom: 4 },
+  heroMetricDivider: { height: 1, backgroundColor: theme.colors.border },
+  heroMetricValue: { color: theme.colors.text, fontSize: 14, fontWeight: '900' },
+  heroMetricLabel: { color: '#0284C7', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
   card: {
-    backgroundColor: '#11161D',
+    backgroundColor: theme.colors.card,
     borderRadius: 20,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#22303B',
+    borderColor: theme.colors.border,
     marginBottom: 20,
   },
   cardActive: { borderColor: 'rgba(16, 185, 129, 0.35)', backgroundColor: 'rgba(16, 185, 129, 0.05)' },
   cardEmpty: { alignItems: 'center', paddingVertical: 34, gap: 10 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
-  sectionTitle: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', letterSpacing: 1.1 },
-  dataBlock: { backgroundColor: '#0F141A', padding: 12, borderRadius: 14, marginBottom: 10, borderWidth: 1, borderColor: '#22303B' },
+  sectionTitle: { fontSize: 13, fontWeight: '900', color: theme.colors.text, letterSpacing: 1.1 },
+  dataBlock: { backgroundColor: theme.colors.inputBackground, padding: 12, borderRadius: 14, marginBottom: 10, borderWidth: 1, borderColor: theme.colors.border },
   dataHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   dataIconWrap: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(56, 189, 248, 0.08)' },
-  label: { fontSize: 10, color: '#8B96A8', textTransform: 'uppercase', letterSpacing: 1 },
-  value: { fontSize: 16, color: '#FFFFFF', fontWeight: '800' },
-  subValue: { fontSize: 12, color: '#38BDF8', marginTop: 4 },
-  refreshButton: { backgroundColor: '#38BDF8', paddingVertical: 15, borderRadius: 14, alignItems: 'center', marginTop: 10, shadowColor: '#38BDF8', shadowOpacity: 0.2, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
+  label: { fontSize: 10, color: theme.colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1 },
+  value: { fontSize: 16, color: theme.colors.text, fontWeight: '800' },
+  subValue: { fontSize: 12, color: theme.colors.primary, marginTop: 4 },
+  themeToggleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    padding: 18,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: 20,
+  },
+  themeToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  themeToggleText: { fontSize: 14, fontWeight: 'bold', color: theme.colors.text },
+  refreshButton: { backgroundColor: theme.colors.text, paddingVertical: 15, borderRadius: 14, alignItems: 'center', marginTop: 10, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
   primaryButton: { backgroundColor: '#10B981' },
-  retryButton: { backgroundColor: '#0284C7', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 6 },
-  buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 13, letterSpacing: 0.9 },
-  signOutButton: { backgroundColor: '#EF4444', paddingVertical: 15, borderRadius: 14, alignItems: 'center', marginTop: 8, shadowColor: '#EF4444', shadowOpacity: 0.22, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
+  retryButton: { backgroundColor: theme.colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 6 },
+  buttonText: { color: theme.colors.background, fontWeight: '900', fontSize: 13, letterSpacing: 0.9 },
+  signOutButton: { backgroundColor: theme.colors.danger, paddingVertical: 15, borderRadius: 14, alignItems: 'center', marginTop: 8, shadowColor: theme.colors.danger, shadowOpacity: 0.22, shadowRadius: 12, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
   buttonContentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   buttonDisabled: { opacity: 0.6 },
 });

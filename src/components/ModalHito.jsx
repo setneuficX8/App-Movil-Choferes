@@ -7,8 +7,12 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { EVENTOS, STORAGE_KEYS } from '../config/constanst';
 import { insertarHitoLocal } from "../database/hitosQueries";
 import { PruebaCamaraHito } from './PruebaCamaraHito'; // Importación crítica de la cámara
+import { useTheme } from '../context/ThemeContext';
 
 export const ModalHito = () => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
   const [isVisible, setIsVisible] = useState(false);
   const [datosHito, setDatosHito] = useState(null);
   const [modoCamara, setModoCamara] = useState(false); // Switch de estado de la interfaz
@@ -106,16 +110,16 @@ export const ModalHito = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (theme) => StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
-  dialogBox: { backgroundColor: '#171C22', padding: 25, borderRadius: 12, borderWidth: 1, borderColor: '#38BDF8', width: '85%' },
+  dialogBox: { backgroundColor: theme.colors.card, padding: 25, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.primary, width: '85%' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10, gap: 8 },
-  title: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
-  text: { color: '#8892B0', fontSize: 14, textAlign: 'center', marginBottom: 5 },
-  instruction: { color: '#D1D5DB', fontSize: 14, textAlign: 'center', marginVertical: 20, fontWeight: '600' },
+  title: { color: theme.colors.text, fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
+  text: { color: theme.colors.textSecondary, fontSize: 14, textAlign: 'center', marginBottom: 5 },
+  instruction: { color: theme.colors.text, fontSize: 14, textAlign: 'center', marginVertical: 20, fontWeight: '600' },
   buttonRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  btnSkip: { flex: 1, paddingVertical: 12, backgroundColor: '#4B5563', borderRadius: 6, alignItems: 'center' },
+  btnSkip: { flex: 1, paddingVertical: 12, backgroundColor: theme.colors.border, borderRadius: 6, alignItems: 'center' },
   btnCamera: { flex: 1, paddingVertical: 12, backgroundColor: '#0EA5E9', borderRadius: 6, alignItems: 'center' },
-  btnText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 },
+  btnText: { color: theme.colors.text, fontWeight: 'bold', fontSize: 13 },
   btnContentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
 });

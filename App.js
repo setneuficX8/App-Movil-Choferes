@@ -11,8 +11,9 @@ import { initLocalDatabase } from "./src/database/dbSetup";
 import { supabase } from "./src/config/constanst";
 import { AppNavigator } from "./src/navegacion/AppNavigator";
 import "./src/tasks/locationTask";
+import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 
-export default function App() {
+function MainApp() {
   const [inicializando, setInicializando] = useState(true);
   const [sesionActiva, setSesionActiva] = useState(null);
 
@@ -44,11 +45,13 @@ export default function App() {
     }
   };
 
+  const { theme } = useTheme();
+
   if (inicializando) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#FFFFFF" />
-        <Text style={styles.loadingText}>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
           Verificando Integridad de Datos e Identidad...
         </Text>
       </View>
@@ -58,16 +61,21 @@ export default function App() {
   return <AppNavigator />;
 }
 
+export default function App() {
+  return (
+    <ThemeProvider>
+      <MainApp />
+    </ThemeProvider>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0C0F12" },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#0C0F12",
   },
   loadingText: {
-    color: "#8892B0",
     fontSize: 13,
     marginTop: 15,
     fontWeight: "500",
