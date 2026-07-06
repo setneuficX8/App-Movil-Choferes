@@ -9,9 +9,6 @@ import {
 } from "react-native";
 import { initLocalDatabase } from "./src/database/dbSetup";
 import { supabase } from "./src/config/constanst";
-import LoginScreen from "./src/components/LoginScreen";
-import PantallaOperacion from "./src/components/PantallaOperacion";
-import PerfilChofer from "./src/components/PerfilChofer";
 import { AppNavigator } from "./src/navegacion/AppNavigator";
 import "./src/tasks/locationTask";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
