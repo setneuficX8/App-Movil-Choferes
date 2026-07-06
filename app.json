@@ -20,6 +20,7 @@
     },
     "android": {
       "package": "com.universidad.appchoferes",
+      "softwareKeyboardLayoutMode": "pan",
       "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -41,6 +42,15 @@
       ]
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ],
       [
         "expo-location",
         {

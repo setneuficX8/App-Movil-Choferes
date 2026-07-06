@@ -19,6 +19,7 @@
     "eas-cli": "^20.1.0",
     "expo": "~55.0.26",
     "expo-background-fetch": "^55.0.16",
+    "expo-build-properties": "^57.0.3",
     "expo-camera": "^55.0.19",
     "expo-crypto": "^55.0.15",
     "expo-image-manipulator": "^55.0.17",
