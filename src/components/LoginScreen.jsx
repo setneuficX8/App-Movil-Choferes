@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { authService } from '../services/authService';
+import { useTheme } from '../context/ThemeContext';
 
 const LoginScreen = ({ onLoginSuccess }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,16 +32,15 @@ const LoginScreen = ({ onLoginSuccess }) => {
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.wrapper}
     >
       <View style={styles.card}>
-        <Text style={styles.brandTitle}>RECO-SOMBRA</Text>
-        <Text style={styles.subtitle}>Capa de Identidad del Conductor</Text>
+        <Text style={styles.brandTitle}>INICIA SESIÓN</Text>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Correo Operativo</Text>
+          <Text style={styles.label}>Correo electronico</Text>
           <TextInput
             style={styles.input}
             placeholder="ejemplo@empresa.com"
@@ -51,7 +54,7 @@ const LoginScreen = ({ onLoginSuccess }) => {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Contraseña de Ruta</Text>
+          <Text style={styles.label}>Contraseña</Text>
           <TextInput
             style={styles.input}
             placeholder="••••••••"
@@ -64,15 +67,15 @@ const LoginScreen = ({ onLoginSuccess }) => {
           />
         </View>
 
-        <TouchableOpacity 
-          style={[styles.button, loading && styles.buttonDisabled]} 
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleLogin}
           disabled={loading}
         >
           {loading ? (
             <ActivityIndicator color="#000000" />
           ) : (
-            <Text style={styles.buttonText}>AUTENTICAR Y SOLICITAR ACCESO RLS</Text>
+            <Text style={styles.buttonText}>AUTENTICAR Y SOLICITAR ACCESO</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -80,17 +83,17 @@ const LoginScreen = ({ onLoginSuccess }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#0C0F12', justifyContent: 'center', padding: 20 },
-  card: { backgroundColor: '#171C22', borderRadius: 12, padding: 25, borderWidth: 1, borderColor: '#242C35', width: '100%' },
-  brandTitle: { fontSize: 26, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center', letterSpacing: 2 },
-  subtitle: { fontSize: 12, color: '#8892B0', textAlign: 'center', marginTop: 5, marginBottom: 30, textTransform: 'uppercase' },
+const getStyles = (theme) => StyleSheet.create({
+  wrapper: { flex: 1, backgroundColor: theme.colors.background, justifyContent: 'center', padding: 20 },
+  card: { backgroundColor: theme.colors.card, borderRadius: 12, padding: 25, borderWidth: 1, borderColor: theme.colors.border, width: '100%' },
+  brandTitle: { fontSize: 26, fontWeight: 'bold', color: theme.colors.text, textAlign: 'center', letterSpacing: 2 },
+  subtitle: { fontSize: 12, color: theme.colors.textSecondary, textAlign: 'center', marginTop: 5, marginBottom: 30, textTransform: 'uppercase' },
   inputGroup: { marginBottom: 20 },
-  label: { fontSize: 12, fontWeight: 'bold', color: '#9CA3AF', marginBottom: 8, textTransform: 'uppercase' },
-  input: { backgroundColor: '#0C0F12', color: '#FFFFFF', borderRadius: 8, paddingHorizontal: 15, paddingVertical: 14, fontSize: 14, borderWidth: 1, borderColor: '#242C35' },
-  button: { backgroundColor: '#FFFFFF', borderRadius: 8, paddingVertical: 16, alignItems: 'center', marginTop: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 5 },
+  label: { fontSize: 12, fontWeight: 'bold', color: theme.colors.textSecondary, marginBottom: 8, textTransform: 'uppercase' },
+  input: { backgroundColor: theme.colors.inputBackground, color: theme.colors.text, borderRadius: 8, paddingHorizontal: 15, paddingVertical: 14, fontSize: 14, borderWidth: 1, borderColor: theme.colors.border },
+  button: { backgroundColor: theme.colors.text, borderRadius: 8, paddingVertical: 16, alignItems: 'center', marginTop: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 5 },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: '#000000', fontWeight: 'bold', fontSize: 13, letterSpacing: 0.5 }
+  buttonText: { color: theme.colors.background, fontWeight: 'bold', fontSize: 13, letterSpacing: 0.5 }
 });
 
 export default LoginScreen;

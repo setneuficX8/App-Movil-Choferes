@@ -15,11 +15,15 @@ import { iniciarTrackingGPS, detenerTrackingGPS, verificarHardwareGPS } from '..
 import { obtenerMetricasLocales } from '../database/posicionesQueries';
 import { useNetworkSync } from '../hooks/useNetworkSync';
 import { supabase, STORAGE_KEYS, EVENTOS } from '../config/constanst'; 
+import { useTheme } from '../context/ThemeContext';
 
 import Cronometro from './Cronometro';
 import { ModalHito } from './ModalHito';
 
 const PantallaOperacion = () => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
   const [trackingActivo, setTrackingActivo] = useState(false);
   const [procesandoHandshake, setProcesandoHandshake] = useState(false);
   const [configDinamica, setConfigDinamica] = useState(null);
@@ -232,7 +236,7 @@ const handleForzarHitoManual = () => {
           <MaterialCommunityIcons
             name={trackingActivo ? 'access-point' : 'access-point-off'}
             size={14}
-            color="#FFFFFF"
+            color={theme.colors.text}
             style={styles.statusIcon}
           />
           <View>
@@ -344,9 +348,24 @@ const handleForzarHitoManual = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  containerCenter: { flex: 1, backgroundColor: '#0A0D11', justifyContent: 'center', alignItems: 'center' },
-  container: { flex: 1, backgroundColor: '#0A0D11', padding: 20 },
+const getStyles = (theme) => StyleSheet.create({
+  containerCenter: { flex: 1, backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center' },
+  container: { flex: 1, backgroundColor: theme.colors.background, padding: 20 },
+  centerContainer: { flex: 1, backgroundColor: theme.colors.background, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  loadingText: { color: theme.colors.text, marginTop: 15, fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
+  errorBox: {
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.danger,
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 20,
+    alignItems: 'center',
+    width: '100%',
+    gap: 8,
+  },
+  errorTitle: { color: theme.colors.danger, fontSize: 18, fontWeight: '900', marginBottom: 4, textAlign: 'center' },
+  errorText: { color: theme.colors.textSecondary, textAlign: 'center', marginBottom: 12 },
+  container: { flexGrow: 1, backgroundColor: theme.colors.background, padding: 20 },
   backgroundOrbTop: {
     position: 'absolute',
     top: -60,
@@ -367,9 +386,9 @@ const styles = StyleSheet.create({
   },
   header: { marginTop: 40, marginBottom: 16 },
   headerCopy: { marginBottom: 14 },
-  kicker: { color: '#38BDF8', fontSize: 11, fontWeight: '800', letterSpacing: 2, marginBottom: 6 },
-  title: { fontSize: 26, fontWeight: '900', color: '#FFFFFF', letterSpacing: 1.1 },
-  subtitle: { color: '#9CA3AF', marginTop: 8, lineHeight: 18, fontSize: 12 },
+  kicker: { color: theme.colors.primary, fontSize: 11, fontWeight: '800', letterSpacing: 2, marginBottom: 6 },
+  title: { fontSize: 26, fontWeight: '900', color: theme.colors.text, letterSpacing: 1.1 },
+  subtitle: { color: theme.colors.textSecondary, marginTop: 8, lineHeight: 18, fontSize: 12 },
   statusBadge: {
     marginTop: 4,
     paddingHorizontal: 14,
@@ -378,29 +397,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
   },
   statusIcon: { marginRight: 10 },
-  statusLabel: { fontSize: 9, color: '#C7D2FE', fontWeight: '800', letterSpacing: 1.1, marginBottom: 1 },
-  statusText: { fontSize: 13, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.6 },
+  statusLabel: { fontSize: 9, color: theme.colors.textSecondary, fontWeight: '800', letterSpacing: 1.1, marginBottom: 1 },
+  statusText: { fontSize: 13, fontWeight: '900', color: theme.colors.text, letterSpacing: 0.6 },
   statusDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
   statusDotActive: { backgroundColor: '#10B981' },
-  statusDotInactive: { backgroundColor: '#EF4444' },
+  statusDotInactive: { backgroundColor: theme.colors.danger },
   badgeActive: { backgroundColor: 'rgba(16, 185, 129, 0.12)', borderColor: 'rgba(16, 185, 129, 0.4)' },
   badgeInactive: { backgroundColor: 'rgba(239, 68, 68, 0.12)', borderColor: 'rgba(239, 68, 68, 0.4)' },
   heroCard: {
-    backgroundColor: '#11161D',
+    backgroundColor: theme.colors.card,
     borderRadius: 20,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#22303B',
+    borderColor: theme.colors.border,
     marginBottom: 18,
     shadowColor: '#000',
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.1,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 4,
@@ -426,40 +440,40 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
-  heroTagText: { color: '#7DD3FC', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
-  heroTagTextSecondary: { color: '#C4B5FD', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+  heroTagText: { color: '#0284C7', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+  heroTagTextSecondary: { color: '#6366F1', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
   odometerRow: { flexDirection: 'row', marginTop: 8, alignItems: 'center', justifyContent: 'center' },
   odometerPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#0F141A',
+    backgroundColor: theme.colors.inputBackground,
     borderRadius: 999,
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: '#22303B',
+    borderColor: theme.colors.border,
   },
   odometerSeparator: { width: 12 },
-  odometerValue: { color: '#E5F4FF', fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  odometerValue: { color: theme.colors.text, fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
   metricsBlock: {
-    backgroundColor: '#11161D',
+    backgroundColor: theme.colors.card,
     borderRadius: 20,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#22303B',
+    borderColor: theme.colors.border,
     marginBottom: 20,
   },
   sectionHeader: { marginBottom: 12 },
-  metricsTitle: { color: '#E5E7EB', fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
-  metricsHint: { color: '#8B96A8', fontSize: 11, marginTop: 4 },
+  metricsTitle: { color: theme.colors.text, fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
+  metricsHint: { color: theme.colors.textSecondary, fontSize: 11, marginTop: 4 },
   metricsContainer: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  metricCard: { flex: 1, backgroundColor: '#0F141A', borderRadius: 16, paddingVertical: 16, alignItems: 'center', borderWidth: 1, borderColor: '#22303B' },
+  metricCard: { flex: 1, backgroundColor: theme.colors.inputBackground, borderRadius: 16, paddingVertical: 16, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border },
   metricIconWrap: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', marginBottom: 8, backgroundColor: 'rgba(255,255,255,0.03)' },
   metricValue: { fontSize: 24, fontWeight: '900', marginBottom: 3 },
   textSafe: { color: '#10B981' },
   textWarning: { color: '#F59E0B' },
-  metricLabel: { fontSize: 9, color: '#8B96A8', fontWeight: 'bold', letterSpacing: 0.8 },
+  metricLabel: { fontSize: 9, color: theme.colors.textSecondary, fontWeight: 'bold', letterSpacing: 0.8 },
   controlsContainer: { flex: 1, justifyContent: 'flex-end', paddingBottom: 10 },
   buttonPrimary: {
     backgroundColor: '#0EA5E9',
@@ -473,19 +487,19 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   buttonDanger: {
-    backgroundColor: '#EF4444',
+    backgroundColor: theme.colors.danger,
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: 'center',
-    shadowColor: '#EF4444',
+    shadowColor: theme.colors.danger,
     shadowOpacity: 0.28,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
     elevation: 4,
   },
   buttonManual: {
-    backgroundColor: '#11161D',
-    borderColor: '#38BDF8',
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.primary,
     borderWidth: 1,
     paddingVertical: 14,
     borderRadius: 14,
@@ -494,7 +508,7 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 14, letterSpacing: 0.9 },
-  buttonTextManual: { color: '#38BDF8', fontWeight: '800', fontSize: 12, letterSpacing: 0.5 },
+  buttonTextManual: { color: theme.colors.primary, fontWeight: '800', fontSize: 12, letterSpacing: 0.5 },
   buttonContentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
 });
 

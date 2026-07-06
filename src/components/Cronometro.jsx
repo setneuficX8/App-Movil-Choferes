@@ -1,20 +1,23 @@
 import React, { memo } from 'react';
 import { Text, StyleSheet } from 'react-native';
 import { useChronometer } from '../hooks/useChronometer';
+import { useTheme } from '../context/ThemeContext';
 
 const Cronometro = ({ fechaInicio }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const tiempoStr = useChronometer(fechaInicio);
   
   return <Text style={styles.textoReloj}>{tiempoStr}</Text>;
 };
 
-const styles = StyleSheet.create({
+const getStyles = (theme) => StyleSheet.create({
   textoReloj: {
     fontSize: 54,
     fontWeight: '900',
-    color: '#10B981', // Verde Esmeralda (Éxito)
+    color: theme.colors.primary, 
     letterSpacing: 2,
-    fontVariant: ['tabular-nums'], // Obliga a las fuentes a ocupar el mismo ancho métrico
+    fontVariant: ['tabular-nums'], 
     textAlign: 'center',
     marginVertical: 15,
   }
