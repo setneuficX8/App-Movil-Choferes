@@ -7,7 +7,7 @@ import { iniciarNuevoRecorrido, finalizarRecorridoActivo, auditarVigenciaRecorri
 import { iniciarTrackingGPS, detenerTrackingGPS } from '../services/geolocalizacionService';
 import { obtenerMetricasLocales } from '../database/posicionesQueries';
 import { useNetworkSync } from '../hooks/useNetworkSync';
-import { supabase, STORAGE_KEYS, EVENTOS } from '../config/constanst'; 
+import { supabase, STORAGE_KEYS, EVENTOS } from '../config/constanst';
 
 import Cronometro from './Cronometro';
 import { ModalHito } from './ModalHito'; // Asegurar el montaje del escucha global
@@ -19,7 +19,7 @@ const PantallaOperacion = () => {
   const [configDinamica, setConfigDinamica] = useState(null);
   const [cargandoConfig, setCargandoConfig] = useState(true);
   const [fechaInicioRecorrido, setFechaInicioRecorrido] = useState(null);
-  
+
   // Nuevo estado para telemetría de odómetro visual
   const [distanciaKm, setDistanciaKm] = useState(0);
 
@@ -39,11 +39,11 @@ const PantallaOperacion = () => {
     try {
       const result = await obtenerMetricasLocales();
       setMetricas({ total: result.total, supPendientes: result.supPendientes, apiPendientes: result.apiPendientes });
-      
+
       // EXTRACCIÓN DEL ODÓMETRO GEODÉSICO DESDE ASYNCSTORAGE
       const kmAcumuladosStr = await AsyncStorage.getItem(STORAGE_KEYS.KM_ACUMULADO);
       setDistanciaKm(kmAcumuladosStr ? parseFloat(kmAcumuladosStr) : 0);
-    } catch (error) {}
+    } catch (error) { }
   };
 
   const obtenerContextoYRestaurarSesion = async () => {
@@ -253,25 +253,29 @@ const PantallaOperacion = () => {
 
       {/* Acciones de Control */}
       <View style={styles.controlsContainer}>
+        <TouchableOpacity
+          style={styles.buttonMap}
+          onPress={() => navigation.navigate('Mapa')}
+        >
+          <View style={styles.buttonContentRow}>
+            <MaterialCommunityIcons
+              name="map-search"
+              size={18}
+              color="#10B981"
+            />
+            <Text style={styles.buttonTextMap}>
+              MAPA E HISTORIAL
+            </Text>
+          </View>
+        </TouchableOpacity>
         {trackingActivo && (
           <>
-          {/* NUEVO BOTÓN DEL MAPA */}
-            <TouchableOpacity 
-              style={styles.buttonMap} 
-              onPress={() => navigation.navigate('Mapa')}
-            >
+            <TouchableOpacity style={styles.buttonManual} onPress={handleForzarHitoManual}>
               <View style={styles.buttonContentRow}>
-                <MaterialCommunityIcons name="map-outline" size={18} color="#10B981" />
-                <Text style={styles.buttonTextMap}>VER MAPA EN VIVO</Text>
+                <MaterialCommunityIcons name="camera-outline" size={18} color="#38BDF8" />
+                <Text style={styles.buttonTextManual}>CAPTURAR EVIDENCIA MANUAL (TEST)</Text>
               </View>
             </TouchableOpacity>
-
-            <TouchableOpacity style={styles.buttonManual} onPress={handleForzarHitoManual}>
-            <View style={styles.buttonContentRow}>
-              <MaterialCommunityIcons name="camera-outline" size={18} color="#38BDF8" />
-              <Text style={styles.buttonTextManual}>CAPTURAR EVIDENCIA MANUAL (TEST)</Text>
-            </View>
-          </TouchableOpacity>
           </>
         )}
 
@@ -284,7 +288,7 @@ const PantallaOperacion = () => {
                 <MaterialCommunityIcons name="play" size={18} color="#FFFFFF" />
                 <Text style={styles.buttonText}>INICIAR RECORRIDO</Text>
               </View>
-              
+
             )}
           </TouchableOpacity>
         ) : (
@@ -466,11 +470,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 15,
   },
-  buttonTextMap: { 
-    color: '#10B981', 
-    fontWeight: '800', 
-    fontSize: 12, 
-    letterSpacing: 0.5 
+  buttonTextMap: {
+    color: '#10B981',
+    fontWeight: '800',
+    fontSize: 12,
+    letterSpacing: 0.5
   },
 });
 

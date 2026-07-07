@@ -1,7 +1,7 @@
 // Aquí se ponen cosas como el perfil_id, supabase, la api del profe y lo que falte.
 import { createClient } from "@supabase/supabase-js";
 import { AppState, Platform } from "react-native"; // para detectar cuando la app pasa a segundo plano o vuelve a primer plano
-import "react-native-url-polyfill/auto"; // para que supabase funcione correctamente en React Native
+
 import AsyncStorage from "@react-native-async-storage/async-storage"; // para almacenar el token de autenticación de supabase
 
 // credenciales de supabase (usando variables de entorno de Expo)
