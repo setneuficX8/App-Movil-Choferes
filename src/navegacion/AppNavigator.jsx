@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack'; 
 import { supabase } from '../config/constanst'; 
-
+import MapaRecorrido from '../components/MapaRecorrido';
 import LoginScreen from '../components/LoginScreen';
 import PerfilChofer from '../components/PerfilChofer';
 import PantallaOperacion from '../components/PantallaOperacion';
@@ -40,6 +40,7 @@ export const AppNavigator = () => {
             {/* El orden aquí establece a PerfilChofer como el nodo raíz del árbol autenticado */}
             <Stack.Screen name="Perfil" component={PerfilChofer} />
             <Stack.Screen name="Operacion" component={PantallaOperacion} />
+            <Stack.Screen name="Mapa" component={MapaRecorrido} />
           </>
         )}
       </Stack.Navigator>

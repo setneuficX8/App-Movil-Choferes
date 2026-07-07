@@ -51,7 +51,7 @@
           "isAndroidBackgroundLocationEnabled": true
         }
       ],
-      "@maplibre/maplibre-react-native",
+      "@rnmapbox/maps",
       "expo-sqlite"
     ],
     "web": {
@@ -59,8 +59,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "06fdd5e2-2d7c-4051-9af2-ea63ee4d5e54"
+        "projectId": "de55fb9d-27d5-4698-a3b3-38e34b266d9e"
       }
-    }
+    },
+    "owner": "duvandoe"
   }
 }

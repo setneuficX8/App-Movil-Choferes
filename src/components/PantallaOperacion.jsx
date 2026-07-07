@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Platform, AppState, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { usePreventRemove } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-
+import { usePreventRemove, useNavigation } from '@react-navigation/native';
 import { iniciarNuevoRecorrido, finalizarRecorridoActivo, auditarVigenciaRecorrido } from '../services/recorridoService';
 import { iniciarTrackingGPS, detenerTrackingGPS } from '../services/geolocalizacionService';
 import { obtenerMetricasLocales } from '../database/posicionesQueries';
@@ -14,6 +13,7 @@ import Cronometro from './Cronometro';
 import { ModalHito } from './ModalHito'; // Asegurar el montaje del escucha global
 
 const PantallaOperacion = () => {
+  const navigation = useNavigation();
   const [trackingActivo, setTrackingActivo] = useState(false);
   const [procesandoHandshake, setProcesandoHandshake] = useState(false);
   const [configDinamica, setConfigDinamica] = useState(null);
@@ -254,12 +254,25 @@ const PantallaOperacion = () => {
       {/* Acciones de Control */}
       <View style={styles.controlsContainer}>
         {trackingActivo && (
-          <TouchableOpacity style={styles.buttonManual} onPress={handleForzarHitoManual}>
+          <>
+          {/* NUEVO BOTÓN DEL MAPA */}
+            <TouchableOpacity 
+              style={styles.buttonMap} 
+              onPress={() => navigation.navigate('Mapa')}
+            >
+              <View style={styles.buttonContentRow}>
+                <MaterialCommunityIcons name="map-outline" size={18} color="#10B981" />
+                <Text style={styles.buttonTextMap}>VER MAPA EN VIVO</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.buttonManual} onPress={handleForzarHitoManual}>
             <View style={styles.buttonContentRow}>
               <MaterialCommunityIcons name="camera-outline" size={18} color="#38BDF8" />
               <Text style={styles.buttonTextManual}>CAPTURAR EVIDENCIA MANUAL (TEST)</Text>
             </View>
           </TouchableOpacity>
+          </>
         )}
 
         {!trackingActivo ? (
@@ -271,6 +284,7 @@ const PantallaOperacion = () => {
                 <MaterialCommunityIcons name="play" size={18} color="#FFFFFF" />
                 <Text style={styles.buttonText}>INICIAR RECORRIDO</Text>
               </View>
+              
             )}
           </TouchableOpacity>
         ) : (
@@ -443,6 +457,21 @@ const styles = StyleSheet.create({
   buttonText: { color: '#FFFFFF', fontWeight: '900', fontSize: 14, letterSpacing: 0.9 },
   buttonTextManual: { color: '#38BDF8', fontWeight: '800', fontSize: 12, letterSpacing: 0.5 },
   buttonContentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  buttonMap: {
+    backgroundColor: '#11161D',
+    borderColor: '#10B981',
+    borderWidth: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  buttonTextMap: { 
+    color: '#10B981', 
+    fontWeight: '800', 
+    fontSize: 12, 
+    letterSpacing: 0.5 
+  },
 });
 
 export default PantallaOperacion;

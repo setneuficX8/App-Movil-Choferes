@@ -26,9 +26,17 @@ export const authService = {
       password: password,
     });
 
-    // Si Supabase devuelve un error (credenciales inválidas, usuario inexistente), abortamos inmediatamente
+    // Si Supabase devuelve un error, lo interceptamos para dar un mensaje amigable
     if (error) {
-      throw new Error(`Error de autenticación: ${error.message}`);
+      if (error.message.includes('Invalid login credentials')) {
+        throw new Error("El correo o la contraseña son incorrectos.");
+      }
+      if (error.message.includes('Email not confirmed')) {
+        throw new Error("Debes confirmar tu correo electrónico antes de ingresar.");
+      }
+      
+      // Si es un error de red o de servidor, mostramos el error original
+      throw new Error(`Error de red: ${error.message}`);
     }
 
     const usuario = data.user;
