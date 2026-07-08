@@ -12,12 +12,15 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_MAPBOX_TOKEN": "${EXPO_PUBLIC_MAPBOX_TOKEN}"
       }
     },
     "production": {
       "autoIncrement": true,
-      "android":{
-        "buildType": "app-bundle"
+      "env": {
+        "EXPO_PUBLIC_MAPBOX_TOKEN": "${EXPO_PUBLIC_MAPBOX_TOKEN}"
       }
     }
   },

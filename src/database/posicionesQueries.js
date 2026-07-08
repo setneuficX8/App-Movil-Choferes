@@ -37,3 +37,25 @@ export const obtenerMetricasLocales = async () => {
 
   return { total, supPendientes, apiPendientes };
 };
+
+export const obtenerRutaGeoJSON = async (recorrido_id) => {
+  const posiciones = await db.getAllAsync(
+    `SELECT longitud, latitud FROM posiciones_locales WHERE recorrido_id = ? ORDER BY timestamp_captura ASC`,
+    [recorrido_id]
+  );
+
+  const coordenadas = posiciones.map(pos => [pos.longitud, pos.latitud]);
+
+  return {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: coordenadas,
+        },
+      },
+    ],
+  };
+};

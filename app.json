@@ -2,7 +2,7 @@
   "expo": {
     "name": "App Movil Chofer",
     "slug": "App-Movil-Recoleccion",
-    "version": "1.2.1", 
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,8 +15,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.universidad.appchoferes",
       "infoPlist": {
-    "UIBackgroundModes": ["location"]
-  }
+        "UIBackgroundModes": [
+          "location"
+        ]
+      }
     },
     "android": {
       "package": "com.universidad.appchoferes",
@@ -58,15 +60,18 @@
           "locationWhenInUsePermission": "Permite acceder a la ubicación del vehículo durante la jornada laboral.",
           "isAndroidBackgroundLocationEnabled": true
         }
-      ]
+      ],
+      "@rnmapbox/maps",
+      "expo-sqlite"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "extra": {
       "eas": {
-        "projectId": "06fdd5e2-2d7c-4051-9af2-ea63ee4d5e54"
+        "projectId": "de55fb9d-27d5-4698-a3b3-38e34b266d9e"
       }
-    }
+    },
+    "owner": "duvandoe"
   }
 }
