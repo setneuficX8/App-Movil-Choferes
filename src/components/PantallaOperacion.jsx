@@ -7,16 +7,34 @@ import {
   ActivityIndicator,
   AppState,
   DeviceEventEmitter,
-  Modal
+  Modal,
+  Alert // CORREGIDO: Importación de Alert requerida para usePreventRemove
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { usePreventRemove, useNavigation } from '@react-navigation/native';
-import { iniciarNuevoRecorrido, finalizarRecorridoActivo, auditarVigenciaRecorrido } from '../services/recorridoService';
-import { iniciarTrackingGPS, detenerTrackingGPS } from '../services/geolocalizacionService';
+import * as Location from 'expo-location'; // CORREGIDO: Importación del SDK nativo para aserciones JIT
+
+// SERVICIOS DE GESTIÓN DE RECORRIDO (CORREGIDO: Importados verificarConexionRed y abortarRecorridoFallido)
+import { 
+  iniciarNuevoRecorrido, 
+  finalizarRecorridoActivo, 
+  auditarVigenciaRecorrido, 
+  verificarConexionRed, 
+  abortarRecorridoFallido 
+} from '../services/recorridoService';
+
+// SERVICIOS DE GEOLOCALIZACIÓN (CORREGIDO: Importado comprobarPermisosExistentesGPS)
+import { 
+  iniciarTrackingGPS, 
+  detenerTrackingGPS, 
+  comprobarPermisosExistentesGPS 
+} from '../services/geolocalizacionService';
+
 import { obtenerMetricasLocales } from '../database/posicionesQueries';
 import { useNetworkSync } from '../hooks/useNetworkSync';
 import { supabase, STORAGE_KEYS, EVENTOS } from '../config/constanst';
+import { useTheme } from '../context/ThemeContext'; // CORREGIDO: Importación desde el contexto personalizado del tema
 
 import Cronometro from './Cronometro';
 import { ModalHito } from './ModalHito';
@@ -25,11 +43,9 @@ import { ModalHito } from './ModalHito';
  * Pantalla de Operación de Telemetría para Choferes.
  * Aplica validaciones JIT (Just-In-Time) secuenciales en el momento de la ignición.
  */
-const PantallaOperacion = ({ navigation }) => {
-  const { theme } = useTheme();
-  const styles = getStyles(theme);
-
-  const PantallaOperacion = () => {
+const PantallaOperacion = () => {
+    const { theme } = useTheme(); // CORREGIDO: Consumo correcto de la paleta de colores del tema global
+    const styles = getStyles(theme);
     const navigation = useNavigation();
     const [trackingActivo, setTrackingActivo] = useState(false);
     const [procesandoHandshake, setProcesandoHandshake] = useState(false);
@@ -37,7 +53,7 @@ const PantallaOperacion = ({ navigation }) => {
     const [cargandoConfig, setCargandoConfig] = useState(true);
     const [fechaInicioRecorrido, setFechaInicioRecorrido] = useState(null);
 
-    // Nuevo estado para telemetría de odómetro visual
+    // Telemetría de odómetro visual
     const [distanciaKm, setDistanciaKm] = useState(0);
     const [metricas, setMetricas] = useState({ total: 0, supPendientes: 0, apiPendientes: 0 });
 
@@ -82,12 +98,18 @@ const PantallaOperacion = ({ navigation }) => {
     const refrescarMetricasBufer = async () => {
       try {
         const result = await obtenerMetricasLocales();
-        setMetricas({ total: result.total, supPendientes: result.supPendientes, apiPendientes: result.apiPendientes });
+        if (isMounted.current) {
+          setMetricas({ total: result.total, supPendientes: result.supPendientes, apiPendientes: result.apiPendientes });
+        }
 
-        // EXTRACCIÓN DEL ODÓMETRO GEODÉSICO DESDE ASYNCSTORAGE
+        // Extracción del odómetro geodésico de almacenamiento local
         const kmAcumuladosStr = await AsyncStorage.getItem(STORAGE_KEYS.KM_ACUMULADO);
-        setDistanciaKm(kmAcumuladosStr ? parseFloat(kmAcumuladosStr) : 0);
-      } catch (error) { }
+        if (isMounted.current) {
+          setDistanciaKm(kmAcumuladosStr ? parseFloat(kmAcumuladosStr) : 0);
+        }
+      } catch (error) {
+        console.error("[Metricas] Error al refrescar métricas locales:", error.message);
+      }
     };
 
     const obtenerContextoYRestaurarSesion = async () => {
@@ -164,7 +186,7 @@ const PantallaOperacion = ({ navigation }) => {
           return;
         }
 
-        // ASERCIÓN 3: Verificación y solicitud imperativa de permisos
+        // ASERCIÓN 3: Verificación y solicitud imperativa de permisos de ubicación
         let { status: foreStatus } = await Location.getForegroundPermissionsAsync();
         if (foreStatus !== 'granted') {
           const { status: reqStatus } = await Location.requestForegroundPermissionsAsync();
@@ -184,7 +206,7 @@ const PantallaOperacion = ({ navigation }) => {
         const resultado = await iniciarNuevoRecorrido(configDinamica);
         IDsCreados = { localId: resultado.localId, apiId: resultado.apiId };
 
-        // Inyección y encendido del sensor de fondo nativo
+        // Inyección y encendido del sensor de fondo nativo de geolocalización
         await iniciarTrackingGPS();
 
         if (isMounted.current) {
@@ -194,6 +216,7 @@ const PantallaOperacion = ({ navigation }) => {
         }
 
       } catch (error) {
+        // Ejecutar Rollback inmediato para mitigar viajes parciales (zombi/fantasma)
         if (IDsCreados) {
           await abortarRecorridoFallido(IDsCreados.localId, IDsCreados.apiId);
         }
@@ -285,8 +308,8 @@ const PantallaOperacion = ({ navigation }) => {
       );
     }
 
-    // JIT Refactor: El botón principal de inicio no tiene bloqueo pasivo.
-    // Solo se bloquea temporalmente mientras se está resolviendo la aserción o petición.
+    // El botón principal de inicio no tiene bloqueo pasivo, solo responde temporalmente
+    // mientras se está resolviendo la aserción o petición.
     const isButtonDisabled = procesandoHandshake;
 
     return (
@@ -403,6 +426,7 @@ const PantallaOperacion = ({ navigation }) => {
         </View>
 
         <View style={styles.controlsContainer}>
+          {/* Conservación del botón incorporado por tu compañero de forma intacta */}
           <TouchableOpacity
             style={styles.buttonMap}
             onPress={() => navigation.navigate('Mapa')}
@@ -418,15 +442,14 @@ const PantallaOperacion = ({ navigation }) => {
               </Text>
             </View>
           </TouchableOpacity>
+          
           {trackingActivo && (
-            <>
-              <TouchableOpacity style={styles.buttonManual} onPress={handleForzarHitoManual}>
-                <View style={styles.buttonContentRow}>
-                  <MaterialCommunityIcons name="camera-outline" size={18} color="#38BDF8" />
-                  <Text style={styles.buttonTextManual}>CAPTURAR EVIDENCIA MANUAL (TEST)</Text>
-                </View>
-              </TouchableOpacity>
-            </>
+            <TouchableOpacity style={styles.buttonManual} onPress={handleForzarHitoManual}>
+              <View style={styles.buttonContentRow}>
+                <MaterialCommunityIcons name="camera-outline" size={18} color="#38BDF8" />
+                <Text style={styles.buttonTextManual}>CAPTURAR EVIDENCIA MANUAL (TEST)</Text>
+              </View>
+            </TouchableOpacity>
           )}
 
           {!trackingActivo ? (
@@ -442,7 +465,6 @@ const PantallaOperacion = ({ navigation }) => {
                   <MaterialCommunityIcons name="play" size={18} color="#FFFFFF" />
                   <Text style={styles.buttonText}>INICIAR RECORRIDO</Text>
                 </View>
-
               )}
             </TouchableOpacity>
           ) : (
@@ -608,7 +630,7 @@ const PantallaOperacion = ({ navigation }) => {
     odometerSeparator: { width: 12 },
     odometerValue: { color: theme.colors.text, fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
 
-    // Estilos de los indicadores pasivos de hardware
+    // Indicadores pasivos de hardware
     hardwareIndicators: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -709,6 +731,70 @@ const PantallaOperacion = ({ navigation }) => {
       fontWeight: '800',
       fontSize: 12,
       letterSpacing: 0.5
+    },
+    
+    // Estilos del Modal JIT de Advertencia
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(5, 7, 10, 0.85)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    modalContainer: {
+      width: '100%',
+      backgroundColor: theme.colors.card,
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      padding: 24,
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOpacity: 0.4,
+      shadowRadius: 20,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 10,
+    },
+    modalIconWrap: {
+      width: 68,
+      height: 68,
+      borderRadius: 34,
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    modalTitleText: {
+      color: theme.colors.text,
+      fontSize: 16,
+      fontWeight: '900',
+      letterSpacing: 1.5,
+      marginBottom: 12,
+      textAlign: 'center',
+    },
+    modalMessageText: {
+      color: theme.colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 18,
+      textAlign: 'center',
+      marginBottom: 24,
+    },
+    modalConfirmButton: {
+      backgroundColor: theme.colors.primary,
+      width: '100%',
+      paddingVertical: 14,
+      borderRadius: 12,
+      alignItems: 'center',
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.25,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+    },
+    modalConfirmButtonText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '900',
+      letterSpacing: 1,
     },
   });
 

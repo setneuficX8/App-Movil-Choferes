@@ -17,7 +17,8 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "location"
-        ]
+        ],
+        "NSFaceIDUsageDescription": "Esta aplicación requiere acceso a FaceID para permitir el inicio de sesión rápido y seguro del chofer."
       }
     },
     "android": {
@@ -61,7 +62,12 @@
           "isAndroidBackgroundLocationEnabled": true
         }
       ],
-      "@rnmapbox/maps",
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsImpl": "mapbox"
+        }
+      ],
       "expo-sqlite"
     ],
     "web": {

@@ -253,18 +253,16 @@ const PerfilChofer = () => {
         </TouchableOpacity>
       )}
 
-      <View style={styles.themeToggleContainer}>
-        <View style={styles.themeToggleRow}>
-          <MaterialCommunityIcons name={isDarkMode ? "weather-night" : "weather-sunny"} size={22} color={theme.colors.text} />
-          <Text style={styles.themeToggleText}>{isDarkMode ? 'Modo claro' : 'Modo oscuro'}</Text>
+     {/* Boton de Ajustes*/ }
+      <TouchableOpacity
+        style={[styles.refreshButton, styles.primaryButton]}
+        onPress={() => navigation.navigate('Ajustes')}
+      >
+        <View style={styles.buttonContentRow}>
+          <MaterialCommunityIcons name="cog-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.buttonText}>AJUSTES DE APLICACIÓN</Text>
         </View>
-        <Switch 
-          value={isDarkMode} 
-          onValueChange={toggleTheme} 
-          trackColor={{ false: '#767577', true: theme.colors.primary }}
-          thumbColor={isDarkMode ? '#fff' : '#f4f3f4'}
-        />
-      </View>
+      </TouchableOpacity>
 
       <TouchableOpacity 
         style={styles.refreshButton} 

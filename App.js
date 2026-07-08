@@ -1,21 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { StatusBar } from "expo-status-bar";
-import {
-  SafeAreaView,
-  StyleSheet,
-  View,
-  Text,
-  ActivityIndicator,
-} from "react-native";
+import { StyleSheet, View, Text, ActivityIndicator } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { initLocalDatabase } from "./src/database/dbSetup";
 import { supabase } from "./src/config/constanst";
 import { AppNavigator } from "./src/navegacion/AppNavigator";
 import "./src/tasks/locationTask";
 import { ThemeProvider, useTheme } from "./src/context/ThemeContext";
 
+const BIOMETRIA_STORAGE_KEY = "@biometria_enabled";
+
 function MainApp() {
   const [inicializando, setInicializando] = useState(true);
   const [sesionActiva, setSesionActiva] = useState(null);
+  const [requiresBiometrics, setRequiresBiometrics] = useState(false);
 
   useEffect(() => {
     ejecutarInicializacionDelSistema();
@@ -23,25 +20,34 @@ function MainApp() {
 
   const ejecutarInicializacionDelSistema = async () => {
     try {
-      // Inicializar la estructura SQLite local
+      // 1. Inicializar la estructura local de SQLite
       await initLocalDatabase();
 
-      //  Verificar de forma síncrona/asíncrona si Supabase retuvo la sesión previa en AsyncStorage
+      // 2. Comprobar si existe sesión activa persistida en Supabase Auth
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (session) {
-        setSesionActiva(session.user);
+        setSesionActiva(session);
         console.log(
-          "[App] Sesión previa recuperada con éxito. Usuario:",
+          "[App] Sesión de Supabase activa detectada:",
           session.user.email,
         );
+
+        // 3. Comprobar si el chofer activó la seguridad biométrica de antemano
+        const biometriaFlag = await AsyncStorage.getItem(BIOMETRIA_STORAGE_KEY);
+        if (biometriaFlag === "true") {
+          setRequiresBiometrics(true);
+        }
       }
     } catch (error) {
-      console.error("[App] Fallo crítico durante la inicialización:", error);
+      console.error(
+        "[App] Fallo crítico durante el arranque del sistema:",
+        error,
+      );
     } finally {
-      setInicializando(false); // Apagamos la pantalla global de carga
+      setInicializando(false);
     }
   };
 
@@ -49,16 +55,28 @@ function MainApp() {
 
   if (inicializando) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
+      <View
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: theme.colors.background },
+        ]}
+      >
         <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
-          Verificando Integridad de Datos e Identidad...
+        <Text
+          style={[styles.loadingText, { color: theme.colors.textSecondary }]}
+        >
+          Validando Integridad de Datos e Identidad...
         </Text>
       </View>
     );
   }
 
-  return <AppNavigator />;
+  return (
+    <AppNavigator
+      session={sesionActiva}
+      requiresBiometrics={requiresBiometrics}
+    />
+  );
 }
 
 export default function App() {
