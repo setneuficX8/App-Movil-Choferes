@@ -2,25 +2,64 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   StyleSheet,
-  ActivityIndicator,
-  Alert,
   Text,
   TouchableOpacity,
+  Modal,
+  ScrollView,
+  useWindowDimensions
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import MapboxGL from "@rnmapbox/maps";
 import { useNavigation } from "@react-navigation/native";
-import {
-  obtenerRecorridos,
-  obtenerPosicionesGPS,
-} from "../database/mapaQueries";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming, 
+  withRepeat 
+} from "react-native-reanimated";
 
+import { obtenerRecorridos, obtenerPosicionesGPS } from "../database/mapaQueries";
 import MapaSelector from "../components/MapaSelector";
 import MapaEstadisticas from "../components/MapaEstadisticas";
+
+/**
+ * Skeleton Loader Pulsante.
+ * Reemplaza el ActivityIndicator tradicional ofreciendo una transición visual suave.
+ */
+const MapaSkeleton = ({ insets }) => {
+  const pulseValue = useSharedValue(0.4);
+
+  useEffect(() => {
+    pulseValue.value = withRepeat(
+      withTiming(0.85, { duration: 1000 }),
+      -1, // Infinito
+      true // Reversa en cada ciclo
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: pulseValue.value,
+  }));
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.skeletonMapCanvas} />
+      <View style={[styles.floatingTopPanel, { top: insets.top + 10 }]}>
+        <Animated.View style={[styles.skeletonHeader, animatedStyle]} />
+        <Animated.View style={[styles.skeletonSelector, animatedStyle]} />
+      </View>
+      <Animated.View style={[styles.skeletonFab, animatedStyle]} />
+    </View>
+  );
+};
 
 export default function MapaRecorrido() {
   const camera = useRef(null);
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
 
   // Estados de control para aserciones JIT de Mapbox
   const [tokenValidado, setTokenValidado] = useState(false);
@@ -35,10 +74,17 @@ export default function MapaRecorrido() {
   const [inicio, setInicio] = useState(null);
   const [fin, setFin] = useState(null);
 
+  // Estados del Drawer y telemetría de apoyo
+  const [mostrarEstadisticas, setMostrarEstadisticas] = useState(false);
+  const [cantidadPuntos, setCantidadPuntos] = useState(0);
+  const [velocidadActualMs, setVelocidadActualMs] = useState(0);
+
+  // Valor compartido para fade-in de mapa nativo
+  const mapOpacity = useSharedValue(0);
+
   useEffect(() => {
     const inicializarModuloYDatos = async () => {
       try {
-        // 1. Aserción y seteo JIT del Token de Mapbox
         const token = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
         if (!token || token.trim() === "") {
           throw new Error("El token de acceso de Mapbox no está configurado.");
@@ -49,13 +95,23 @@ export default function MapaRecorrido() {
         console.error("[Mapbox-Init] Error de inicialización asíncrona:", err.message);
         setErrorToken(true);
       }
-
-      // 2. Cargar datos locales de recorridos
       await cargarRecorridos();
     };
 
     inicializarModuloYDatos();
   }, []);
+
+  // Animación del mapa al finalizar la carga
+  useEffect(() => {
+    if (!loading && tokenValidado) {
+      mapOpacity.value = withTiming(1, { duration: 500 });
+    }
+  }, [loading, tokenValidado]);
+
+  const animatedMapStyle = useAnimatedStyle(() => ({
+    opacity: mapOpacity.value,
+    ...StyleSheet.absoluteFillObject
+  }));
 
   async function cargarRecorridos() {
     try {
@@ -67,7 +123,7 @@ export default function MapaRecorrido() {
         await seleccionarRecorrido(lista[0]);
       }
     } catch (e) {
-      Alert.alert("Error", e.message);
+      console.error("[Data-Load] Error al consultar base de datos:", e.message);
     } finally {
       setLoading(false);
     }
@@ -81,6 +137,15 @@ export default function MapaRecorrido() {
       setInicio(gps.inicio);
       setFin(gps.fin);
 
+      if (gps.geojson?.features?.[0]?.geometry?.coordinates) {
+        const coordinates = gps.geojson.features[0].geometry.coordinates;
+        setCantidadPuntos(coordinates.length);
+        setVelocidadActualMs(recorrido.velocidad_ms || 0);
+      } else {
+        setCantidadPuntos(0);
+        setVelocidadActualMs(0);
+      }
+
       setGeojsonRuta({
         type: "Feature",
         geometry: recorrido.Rutas.shape,
@@ -90,11 +155,20 @@ export default function MapaRecorrido() {
         camera.current?.fitBounds(gps.inicio, gps.fin, 80, 1000);
       }
     } catch (e) {
-      Alert.alert("Error", e.message);
+      console.error("[Selection-Error] Error procesando coordenadas:", e.message);
     }
   }
 
-  // Intercepción JIT: Si falla la inicialización nativa de Mapbox, se muestra un fallback seguro
+  const abrirEstadisticasConHaptic = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setMostrarEstadisticas(true);
+  };
+
+  const cerrarEstadisticasConHaptic = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMostrarEstadisticas(false);
+  };
+
   if (errorToken) {
     return (
       <View style={styles.loading}>
@@ -114,66 +188,30 @@ export default function MapaRecorrido() {
     );
   }
 
-  // Control de carga unificado
+  // Renderizado del Skeleton animado mientras se resuelven las promesas
   if (loading || !tokenValidado) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#10b981" />
-        <Text style={{ color: '#9CA3AF', fontSize: 12, marginTop: 12, fontWeight: '700' }}>
-          {!tokenValidado ? "Sincronizando mapas satelitales..." : "Cargando recorridos locales..."}
-        </Text>
-      </View>
-    );
+    return <MapaSkeleton insets={insets} />;
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.backgroundOrbTop} />
-      <View style={styles.backgroundOrbBottom} />
-
-      {/* 1. ENCABEZADO */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          activeOpacity={0.8}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialCommunityIcons name="arrow-left" color="#38BDF8" size={24} />
-        </TouchableOpacity>
-
-        <View>
-          <Text style={styles.kicker}>HISTORIAL GPS</Text>
-          <Text style={styles.titulo}>MAPA DE RECORRIDOS</Text>
-        </View>
-      </View>
-
-      {/* 2. CARD DE SELECCIÓN */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>SELECCIÓN</Text>
-        <MapaSelector
-          recorridos={recorridos}
-          seleccionado={recorridoSeleccionado}
-          onSeleccionar={seleccionarRecorrido}
-        />
-      </View>
-
-      {/* 3. CARD DEL MAPA NATIVO */}
-      <View style={styles.mapCard}>
+      
+      {/* CAPA MAPA: ANIMADA CON FADE-IN SUAVE EN HILO DE RENDERIZACIÓN EXCLUSIVO */}
+      <Animated.View style={animatedMapStyle}>
         <MapboxGL.MapView
-          style={styles.map}
+          style={StyleSheet.absoluteFillObject}
           logoEnabled={false}
           compassEnabled
           scaleBarEnabled
           styleURL={MapboxGL.StyleURL.Street}
         >
-          {/* Cámara nativa con cierre automático correcto */}
           <MapboxGL.Camera
             ref={camera}
             zoomLevel={14}
             centerCoordinate={[-77.0311, 3.8801]}
           />
 
-          {/* RUTA OFICIAL */}
+          {/* RUTA PLANIFICADA */}
           {geojsonRuta && (
             <MapboxGL.ShapeSource id="ruta" shape={geojsonRuta}>
               <MapboxGL.LineLayer
@@ -188,7 +226,7 @@ export default function MapaRecorrido() {
             </MapboxGL.ShapeSource>
           )}
 
-          {/* RECORRIDO */}
+          {/* COORDENADAS RECOLECTADAS */}
           {geojsonRecorrido && (
             <MapboxGL.ShapeSource id="gps" shape={geojsonRecorrido}>
               <MapboxGL.LineLayer
@@ -203,37 +241,111 @@ export default function MapaRecorrido() {
             </MapboxGL.ShapeSource>
           )}
 
-          {/* MARCADOR INICIO */}
+          {/* INICIO */}
           {inicio && (
             <MapboxGL.PointAnnotation id="inicio" coordinate={inicio}>
               <View style={styles.inicio} />
             </MapboxGL.PointAnnotation>
           )}
 
-          {/* MARCADOR FIN */}
+          {/* FIN */}
           {fin && (
             <MapboxGL.PointAnnotation id="fin" coordinate={fin}>
               <View style={styles.fin} />
             </MapboxGL.PointAnnotation>
           )}
         </MapboxGL.MapView>
-      </View>
+      </Animated.View>
 
-      {/* 4. LEYENDA DEL MAPA */}
-      <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendCircle, { backgroundColor: "#2563eb" }]} />
-          <Text style={styles.legendText}>Ruta Oficial</Text>
+      {/* CONTROLES SUPERIORES FLOTANTES (CORREGIDO: AJUSTADO MEDIANTE SAFE AREA INSETS) */}
+      <View style={[styles.floatingTopPanel, { top: insets.top + 10 }]}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity
+            style={styles.backButton}
+            activeOpacity={0.8}
+            onPress={() => navigation.goBack()}
+          >
+            <MaterialCommunityIcons name="arrow-left" color="#38BDF8" size={22} />
+          </TouchableOpacity>
+
+          <View style={styles.headerTitleWrap}>
+            <Text style={styles.kicker}>HISTORIAL GPS</Text>
+            <Text style={styles.titulo}>MAPA DE RECORRIDOS</Text>
+          </View>
         </View>
 
-        <View style={styles.legendItem}>
-          <View style={[styles.legendCircle, { backgroundColor: "#10B981" }]} />
-          <Text style={styles.legendText}>Recorrido GPS</Text>
+        <View style={styles.compactSelectorCard}>
+          <MapaSelector
+            recorridos={recorridos}
+            seleccionado={recorridoSeleccionado}
+            onSeleccionar={seleccionarRecorrido}
+          />
         </View>
       </View>
 
-      {/* 5. CONTROL DE ESTADÍSTICAS */}
-      <MapaEstadisticas recorrido={recorridoSeleccionado} />
+      {/* ACCIÓN FLOTANTE (FAB) */}
+      <TouchableOpacity
+        style={styles.fabButton}
+        activeOpacity={0.85}
+        onPress={abrirEstadisticasConHaptic}
+      >
+        <MaterialCommunityIcons name="chart-box-outline" size={24} color="#FFFFFF" />
+      </TouchableOpacity>
+
+      {/* BOTTOM SHEET/DRAWER DE TELEMETRÍA */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={mostrarEstadisticas}
+        onRequestClose={cerrarEstadisticasConHaptic}
+      >
+        <View style={styles.drawerOverlay}>
+          <TouchableOpacity 
+            style={styles.drawerDismissOverlay}
+            activeOpacity={1}
+            onPress={cerrarEstadisticasConHaptic}
+          />
+          
+          <View style={[styles.drawerContainer, { maxHeight: height * 0.75 }]}>
+            <View style={styles.drawerHandle} />
+            
+            <View style={styles.drawerHeader}>
+              <Text style={styles.drawerTitle}>DETALLES DEL VIAJE</Text>
+              <TouchableOpacity
+                style={styles.drawerCloseButton}
+                onPress={cerrarEstadisticasConHaptic}
+              >
+                <MaterialCommunityIcons name="close" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView 
+              contentContainerStyle={styles.drawerScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <MapaEstadisticas 
+                recorrido={recorridoSeleccionado} 
+                cantidadPuntos={cantidadPuntos}
+                velocidadActualMs={velocidadActualMs}
+              />
+
+              <View style={styles.legendContainer}>
+                <Text style={styles.legendTitle}>LEYENDA GEOGRÁFICA</Text>
+                <View style={styles.legendRow}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendCircle, { backgroundColor: "#2563eb" }]} />
+                    <Text style={styles.legendText}>Ruta Oficial</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendCircle, { backgroundColor: "#10B981" }]} />
+                    <Text style={styles.legendText}>Recorrido GPS</Text>
+                  </View>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -250,111 +362,217 @@ const styles = StyleSheet.create({
     backgroundColor: "#0A0D11",
     padding: 24,
   },
-  header: {
-    marginTop: 50,
-    marginHorizontal: 20,
-    marginBottom: 18,
+  
+  // Estructuras de Skeletons Animados
+  skeletonMapCanvas: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#0E1217",
+  },
+  skeletonHeader: {
+    height: 58,
+    backgroundColor: "#151B22",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#22303B",
+    marginBottom: 8,
+  },
+  skeletonSelector: {
+    height: 64,
+    backgroundColor: "#151B22",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#22303B",
+  },
+  skeletonFab: {
+    position: "absolute",
+    bottom: 30,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#151B22",
+    borderWidth: 1,
+    borderColor: "#22303B",
+  },
+
+  // Panel Flotante Superior
+  floatingTopPanel: {
+    position: "absolute",
+    left: "4%",
+    right: "4%",
+    zIndex: 10,
+  },
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "rgba(11, 16, 23, 0.88)",
+    padding: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#22303B",
+    marginBottom: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
   backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     backgroundColor: "#11161D",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 15,
     borderWidth: 1,
     borderColor: "#22303B",
+  },
+  headerTitleWrap: {
+    flex: 1,
+    marginLeft: 12,
   },
   kicker: {
     color: "#38BDF8",
     fontWeight: "800",
-    fontSize: 11,
-    letterSpacing: 2,
+    fontSize: 9,
+    letterSpacing: 1.5,
   },
   titulo: {
-    fontSize: 26,
+    fontSize: 16,
     fontWeight: "900",
     color: "white",
-    marginTop: 5,
+    marginTop: 1,
   },
-  card: {
-    marginHorizontal: 15,
-    backgroundColor: "#11161D",
-    borderRadius: 18,
-    padding: 15,
-    marginBottom: 15,
+  compactSelectorCard: {
+    backgroundColor: "rgba(17, 22, 29, 0.92)",
+    borderRadius: 16,
+    padding: 10,
     borderWidth: 1,
     borderColor: "#22303B",
-  },
-  cardTitle: {
-    color: "#9CA3AF",
-    fontWeight: "800",
-    fontSize: 11,
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
-  backgroundOrbTop: {
-    position: "absolute",
-    top: -60,
-    right: -70,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: "rgba(56,189,248,.08)",
-  },
-  backgroundOrbBottom: {
-    position: "absolute",
-    bottom: 40,
-    left: -80,
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: "rgba(16,185,129,.06)",
-  },
-  mapCard: {
-    flex: 1,
-    marginHorizontal: 15,
-    marginBottom: 15,
-    borderRadius: 20,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#22303B",
-    backgroundColor: "#11161D",
     shadowColor: "#000",
-    shadowOpacity: 0.35,
-    shadowRadius: 15,
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    elevation: 8,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
   },
-  map: {
-    flex: 1,
-  },
+
+  // Marcadores de Capa de Mapa
   inicio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: "#10b981",
-    borderWidth: 3,
+    borderWidth: 2.5,
     borderColor: "white",
   },
   fin: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: "#ef4444",
-    borderWidth: 3,
+    borderWidth: 2.5,
     borderColor: "white",
   },
-  legend: {
+
+  // Botón Acción Flotante (FAB)
+  fabButton: {
+    position: "absolute",
+    bottom: 30,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#10B981",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9,
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+
+  // Cajón Deslizable Bottom Sheet
+  drawerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(5, 7, 10, 0.65)",
+    justifyContent: "flex-end",
+  },
+  drawerDismissOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
+  drawerContainer: {
+    width: "100%",
+    backgroundColor: "#11161D",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderColor: "#22303B",
+    borderBottomWidth: 0,
+    paddingBottom: 20,
+    zIndex: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: -8 },
+    elevation: 16,
+  },
+  drawerHandle: {
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#374151",
+    alignSelf: "center",
+    marginTop: 10,
+  },
+  drawerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  drawerTitle: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+  },
+  drawerCloseButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#1F2937",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  drawerScrollContent: {
+    paddingHorizontal: 8,
+  },
+
+  // Contenedor de Leyendas
+  legendContainer: {
+    backgroundColor: "#151B22",
+    marginHorizontal: 15,
+    marginTop: 4,
+    marginBottom: 20,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#22303B",
+  },
+  legendTitle: {
+    color: "#9CA3AF",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  legendRow: {
     flexDirection: "row",
     justifyContent: "center",
-    paddingBottom: 15,
     gap: 30,
   },
   legendItem: {
@@ -362,14 +580,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   legendCircle: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     marginRight: 8,
   },
   legendText: {
     color: "#D1D5DB",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
   },
   errorText: {
