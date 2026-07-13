@@ -28,6 +28,12 @@ TaskManager.defineTask(TASK_GPS, async ({ data, error }) => {
       const longitud = location.coords.longitude;
       const timestamp_captura = new Date(location.timestamp).toISOString();
       const idCriptografico = Crypto.randomUUID();
+      // speed en m/s; Android puede devolver null o -1 si no hay dato
+      const speedRaw = location.coords.speed;
+      const velocidad_ms =
+        speedRaw != null && Number.isFinite(speedRaw) && speedRaw >= 0
+          ? speedRaw
+          : null;
 
       // --- INICIO DE LÓGICA DIFERENCIAL ---
       let kmAcumulado =
@@ -82,6 +88,7 @@ TaskManager.defineTask(TASK_GPS, async ({ data, error }) => {
         latitud,
         longitud,
         timestamp_captura,
+        velocidad_ms,
       });
     } catch (e) {
       console.error("[LocationTask] Falla estructural:", e.message);

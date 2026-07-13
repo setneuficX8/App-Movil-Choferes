@@ -35,6 +35,7 @@ export const abortarRecorridoFallido = async (localId, apiId) => {
 
     // 2. Eliminación física en Supabase para evitar colisiones lógicas
     if (localId) {
+      await supabase.from("posiciones_live").delete().eq("recorrido_id", localId);
       const { error } = await supabase
         .from("recorridos")
         .delete()
@@ -183,13 +184,23 @@ export const finalizarRecorridoActivo = async () => {
     }
   }
 
+  const kmAcumuladoRaw = await AsyncStorage.getItem(STORAGE_KEYS.KM_ACUMULADO);
+  const distanciaTotalKm = kmAcumuladoRaw
+    ? Number.parseFloat(kmAcumuladoRaw)
+    : null;
+
   // 2. Actualización de estado en Supabase
+  const updatePayload = {
+    estado: "completado",
+    fecha_fin: new Date().toISOString(),
+  };
+  if (Number.isFinite(distanciaTotalKm)) {
+    updatePayload.distancia_total_km = distanciaTotalKm;
+  }
+
   const { error: dbError } = await supabase
     .from("recorridos")
-    .update({
-      estado: "completado",
-      fecha_fin: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", recorridoLocalId);
 
   if (dbError) {
@@ -198,9 +209,24 @@ export const finalizarRecorridoActivo = async () => {
     );
   }
 
-  // 3. Purga del almacenamiento local
+  // 3. Quitar posición live (Realtime DELETE para App Ciudadano)
+  const { error: liveDeleteError } = await supabase
+    .from("posiciones_live")
+    .delete()
+    .eq("recorrido_id", recorridoLocalId);
+  if (liveDeleteError) {
+    console.warn(
+      "[Finalización] No se pudo eliminar posiciones_live:",
+      liveDeleteError.message,
+    );
+  }
+
+  // 4. Purga del almacenamiento local
   await AsyncStorage.removeItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
   await AsyncStorage.removeItem("recorrido_activo_id_api");
+  await AsyncStorage.removeItem(STORAGE_KEYS.KM_ACUMULADO);
+  await AsyncStorage.removeItem(STORAGE_KEYS.ULTIMA_UBICACION);
+  await AsyncStorage.removeItem(STORAGE_KEYS.ULTIMO_HITO_KM);
 };
 
 /**
@@ -244,13 +270,33 @@ export const auditarVigenciaRecorrido = async () => {
       console.warn(
         "[Auditoría] Recorrido con antigüedad >= 24 horas. Suspensión forzosa en curso.",
       );
+      const kmAcumuladoRaw = await AsyncStorage.getItem(
+        STORAGE_KEYS.KM_ACUMULADO,
+      );
+      const distanciaTotalKm = kmAcumuladoRaw
+        ? Number.parseFloat(kmAcumuladoRaw)
+        : null;
+      const suspendPayload = {
+        estado: "suspendido",
+        fecha_fin: new Date().toISOString(),
+      };
+      if (Number.isFinite(distanciaTotalKm)) {
+        suspendPayload.distancia_total_km = distanciaTotalKm;
+      }
       await supabase
         .from("recorridos")
-        .update({ estado: "suspendido", fecha_fin: new Date().toISOString() })
+        .update(suspendPayload)
         .eq("id", recorridoLocalId);
+      await supabase
+        .from("posiciones_live")
+        .delete()
+        .eq("recorrido_id", recorridoLocalId);
 
       await AsyncStorage.removeItem(STORAGE_KEYS.RECORRIDO_ACTIVO_ID);
       await AsyncStorage.removeItem("recorrido_activo_id_api");
+      await AsyncStorage.removeItem(STORAGE_KEYS.KM_ACUMULADO);
+      await AsyncStorage.removeItem(STORAGE_KEYS.ULTIMA_UBICACION);
+      await AsyncStorage.removeItem(STORAGE_KEYS.ULTIMO_HITO_KM);
       return { expirado: true, zombie: false };
     }
 
