@@ -36,17 +36,33 @@ const sincronizarPosicionesLocales = async (recorridoApiId) => {
         }
       }
 
-      // Supabase
+      // Supabase (historial + live para App Ciudadano)
       if (!syncSupabaseExitoso) {
         try {
           const puntoPostGIS = `SRID=4326;POINT(${pos.longitud} ${pos.latitud})`;
-          await supabase.from("posiciones_gps").insert({
+          const { error: gpsError } = await supabase.from("posiciones_gps").insert({
             id: pos.id,
             recorrido_id: pos.recorrido_id,
             ubicacion: puntoPostGIS,
             timestamp_captura: pos.timestamp_captura,
             sincronizado_api_externa: syncApiExitoso,
           });
+          if (gpsError) throw gpsError;
+
+          const { error: liveError } = await supabase.from("posiciones_live").upsert(
+            {
+              recorrido_id: pos.recorrido_id,
+              ubicacion: puntoPostGIS,
+              velocidad_ms: pos.velocidad_ms ?? null,
+              timestamp_captura: pos.timestamp_captura,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "recorrido_id" },
+          );
+          if (liveError) {
+            console.error(`[Sync GPS] Fallo posiciones_live:`, liveError.message);
+          }
+
           syncSupabaseExitoso = true;
         } catch (e) {
           console.error(`[Sync GPS] Fallo Supabase:`, e.message);

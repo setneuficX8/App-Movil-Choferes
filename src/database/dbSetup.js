@@ -15,6 +15,7 @@ export const initLocalDatabase = async () => {
         latitud REAL NOT NULL,
         longitud REAL NOT NULL,
         timestamp_captura TEXT NOT NULL,
+        velocidad_ms REAL,
         sincronizado_supabase INTEGER DEFAULT 0,
         sincronizado_api_externa INTEGER DEFAULT 0
       );
@@ -34,6 +35,19 @@ export const initLocalDatabase = async () => {
         sincronizado_api_externa INTEGER DEFAULT 0
       );
     `);
+
+    // Migración idempotente: velocidad del GPS para App Ciudadano (posiciones_live)
+    try {
+      await db.execAsync(
+        `ALTER TABLE posiciones_locales ADD COLUMN velocidad_ms REAL`,
+      );
+    } catch (migrationError) {
+      const mensaje = migrationError?.message || "";
+      if (!mensaje.includes("duplicate column name")) {
+        throw migrationError;
+      }
+    }
+
     console.log('Base de datos local inicializada correctamente.');
   } catch (error) {
     console.error('Error al intentar inicializar SQLite:', error);

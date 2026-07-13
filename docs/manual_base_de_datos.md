@@ -183,6 +183,7 @@ Esta es la tabla que usa la **App Ciudadano** para mostrar los camiones en el ma
 | `recorrido_id` | PK y FK → `recorridos.id` — garantiza una sola fila por recorrido |
 | `ubicacion` | Posición actual del camión |
 | `latitud` / `longitud` | Calculadas automáticamente |
+| `velocidad_ms` | Velocidad instantánea del GPS en m/s (UPSERT desde `syncService.js`; puede ser null si el dispositivo no reporta speed) |
 | `updated_at` | Última vez que se actualizó — indica cuán reciente es la posición |
 
 **Diferencia clave con `posiciones_gps`:**
@@ -287,7 +288,8 @@ Los campos `sincronizado_api_externa` e `imagen_sincronizada` son el mecanismo q
 | Login del chofer | Solo `Chofer` (para obtener el `id` desde `user_id`) |
 | Pantalla de configuración | `asignaciones` + `vehiculos` + `Rutas` |
 | Iniciar un recorrido | `recorridos` |
-| Enviar posición GPS | `posiciones_gps` + `posiciones_live` (ambas) |
+| Enviar posición GPS | `posiciones_gps` + UPSERT `posiciones_live` con `ubicacion`, `timestamp_captura` y `velocidad_ms` (implementado en `syncService.js`) |
+| Finalizar / suspender recorrido | `UPDATE recorridos` + `DELETE posiciones_live` (Realtime DELETE para App Ciudadano) |
 | Registrar un hito | `hitos_control` |
 | Subir foto de evidencia | `hitos_control` (actualizar `imagen_url`) |
 | Mapa en tiempo real (ciudadano) | `posiciones_live` (Realtime) |

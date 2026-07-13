@@ -9,12 +9,13 @@ export const insertarPosicionLocal = async ({
   latitud,
   longitud,
   timestamp_captura,
+  velocidad_ms = null,
 }) => {
   return await db.runAsync(
     `INSERT INTO posiciones_locales 
-      (id, recorrido_id, latitud, longitud, timestamp_captura, sincronizado_supabase, sincronizado_api_externa)
-     VALUES (?, ?, ?, ?, ?, 0, 0)`,
-    [id, recorrido_id, latitud, longitud, timestamp_captura],
+      (id, recorrido_id, latitud, longitud, timestamp_captura, velocidad_ms, sincronizado_supabase, sincronizado_api_externa)
+     VALUES (?, ?, ?, ?, ?, ?, 0, 0)`,
+    [id, recorrido_id, latitud, longitud, timestamp_captura, velocidad_ms],
   );
 };
 
