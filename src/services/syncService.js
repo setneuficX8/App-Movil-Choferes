@@ -49,18 +49,31 @@ const sincronizarPosicionesLocales = async (recorridoApiId) => {
           });
           if (gpsError) throw gpsError;
 
-          const { error: liveError } = await supabase.from("posiciones_live").upsert(
-            {
-              recorrido_id: pos.recorrido_id,
-              ubicacion: puntoPostGIS,
-              velocidad_ms: pos.velocidad_ms ?? null,
-              timestamp_captura: pos.timestamp_captura,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "recorrido_id" },
-          );
+          const livePayload = {
+            recorrido_id: pos.recorrido_id,
+            ubicacion: puntoPostGIS,
+            timestamp_captura: pos.timestamp_captura,
+            updated_at: new Date().toISOString(),
+          };
+          // Solo publicar velocidad válida; omitir null evita borrar la última
+          // velocidad conocida en Realtime (GPS frío / -1 en Android).
+          const velocidad =
+            pos.velocidad_ms != null &&
+            Number.isFinite(Number(pos.velocidad_ms)) &&
+            Number(pos.velocidad_ms) >= 0
+              ? Number(pos.velocidad_ms)
+              : null;
+          if (velocidad != null) {
+            livePayload.velocidad_ms = velocidad;
+          }
+
+          const { error: liveError } = await supabase
+            .from("posiciones_live")
+            .upsert(livePayload, { onConflict: "recorrido_id" });
           if (liveError) {
             console.error(`[Sync GPS] Fallo posiciones_live:`, liveError.message);
+            // No marcar sync exitoso si falló el live: Ciudadano depende de esto.
+            throw liveError;
           }
 
           syncSupabaseExitoso = true;
